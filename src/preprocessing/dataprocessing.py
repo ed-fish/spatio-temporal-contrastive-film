@@ -1,5 +1,4 @@
 import pandas as pd
-from IPython.core.display import display
 import cv2
 import os
 import hashlib
@@ -69,7 +68,7 @@ def create_data_frame(cache_file, debug=False):
     data_frame.columns = ["Genre", "Name", "Scene"]
     data_frame["Filepath"] = pd.read_csv(cache_file, delimiter='/n')
     if debug:
-        display(data_frame)
+        print('data frame created')
     return data_frame
 
 def split_frames(file_path,out_path, min_clip_len, n_frames, desc, debug=False):
