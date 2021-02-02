@@ -7,7 +7,7 @@
    # todo TOP SECRET STUFF I CANT TELL YOU ABOUT
 
 """
-from code.preprocessing import dataprocessing as dp
+from src.preprocessing import dataprocessing as dp
 import pandas as pd
 
 def create_data_frame(text_file, out_pkl):
