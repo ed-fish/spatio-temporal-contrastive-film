@@ -2,3 +2,5 @@
 /logs
 /data
 /.idea
+/tests
+/src/data.pkl
