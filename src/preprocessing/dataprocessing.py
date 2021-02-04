@@ -4,6 +4,8 @@ import os
 import hashlib
 import random
 import numpy as np
+from PIL import Image
+from torchvision import transforms
 
 class Chunk:
     """Convert an array of frames into a transposed
@@ -27,19 +29,25 @@ class Chunk:
         self.random_gray = random.randrange(1, 6)
         self.random_blur = random.randrange(1, 4)
 
-    def transform(self, image):
+    def transform(self, img):
         # Crop image
-        image = image[self.y:self.y + self.crop_size, self.x:self.x + self.crop_size]
+        image = img[self.y:self.y + self.crop_size, self.x:self.x + self.crop_size]
         # Flip image
-        image = cv2.flip(image, self.flip_val)
+        image = cv2.flip(img, self.flip_val)
         # Generate and add noise
-        #noise = self.generate_noise(image)
-        #image = cv2.add(image, noise)
+        #noise = self.generate_noise(img)
+        #image = cv2.add(img, noise)
         # Gray scale and blurring
-        if self.random_gray == 3: image = cv2.cvtColor(cv2.cvtColor(image, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
-        if self.random_blur == 3: image = cv2.GaussianBlur(image, (5,5), 0)
-        image = cv2.resize(image, (112, 112), interpolation = cv2.INTER_AREA)
-        return image
+        if self.random_gray == 3: img = cv2.cvtColor(cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR)
+        if self.random_blur == 3: img = cv2.GaussianBlur(img, (5,5), 0)
+        img = cv2.resize(img, (112, 112), interpolation = cv2.INTER_AREA)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = Image.fromarray(img)
+        tensorfy = transforms.ToTensor()
+        norm = transforms.Normalize((0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989))
+        img = norm(tensorfy(img))
+
+        return img
 
     def generate_noise(self, image):
         noise = np.random.randint(0,50,(self.crop_size, self.crop_size)) # design jitter/noise here
@@ -51,10 +59,8 @@ class Chunk:
         #todo Convert to tensor
         for i, im in enumerate(self.chunk_array):
             trans_im = self.transform(im)
-            trans_im = cv2.cvtColor(trans_im, cv2.COLOR_BGR2RGB)
             self.chunk_array[i] = trans_im
         stacked_images = np.stack(self.chunk_array)
-        stacked_images = stacked_images.transpose(0,3,1,2)
         return stacked_images
 
     def gen_hash(self, tbh):
@@ -71,7 +77,7 @@ def create_data_frame(cache_file, debug=False):
         print('data frame created')
     return data_frame
 
-def split_frames(file_path,out_path, min_clip_len, n_frames, desc, debug=False):
+def split_frames(file_path, min_clip_len, n_frames, debug=True):
     count = 0
     frame_list = []
     clip_list = []
@@ -96,35 +102,35 @@ def split_frames(file_path,out_path, min_clip_len, n_frames, desc, debug=False):
 
     if len(clip_list) >= min_clip_len:
         for i, clip in enumerate(clip_list):
-            chunk_pth = os.path.join(out_path, desc)
-            name_path = os.path.join(chunk_pth, str(i))
-            chunk_obj = Chunk(clip, name_path)
+            print(file_path)
+            chunk_obj = Chunk(clip, file_path + str(i))
             trans_images = chunk_obj.chunk_maker() #returns a list of stacked images
             stack_list.append(trans_images)
         return stack_list
     else:
-        if debug:
-            print(len(clip_list))
-            print("not enough clips!")
         return 0
 
-def create_trans_data_frame(data_frame):
+def create_trans_data_frame(data_frame, n_samples):
     data_list = []
-    for i in range(30000):
+    for i in range(0, n_samples):
         fp = data_frame.at[i, "Filepath"]
         name = data_frame.at[i, "Name"]
         scene = data_frame.at[i, "Scene"]
         genre = data_frame.at[i, "Genre"]
         try:
-            stack_of_chunks = split_frames(fp, "./test/", 3, 16, str(name + str(scene)))
-            if type(stack_of_chunks) == int and not stack_of_chunks: continue
+            stack_of_chunks = split_frames(fp, 3, 16)
+            if stack_of_chunks == 0:
+                print('fail')
+                continue
             else:
-                for i, stack in enumerate(stack_of_chunks):
-                    data_list.append([genre, name, scene, fp, stack, i])
-
-        except:
+                data_list.append([genre, name, scene, fp, stack_of_chunks])
+                print("data added")
+        except ValueError:
+            print('Value error')
             continue
 
-    transform_df = pd.DataFrame(data_list, columns=['genre', 'name', 'scene', 'filepath', 'data', 'chunk'])
+    transform_df = pd.DataFrame(data_list, columns=['genre', 'name', 'scene', 'filepath', 'data'])
     return transform_df
+
+
 
