@@ -1,22 +1,31 @@
+# Viz
+import matplotlib as plt
+import matplotlib.pyplot as plt
+from torch.utils.tensorboard import SummaryWriter
+
+# Pytorch
 import torch
 import torch.nn as nn
-import os
-import shutil
-import matplotlib as plt
-import pandas as pd
-from torch.utils.tensorboard import SummaryWriter
-from preprocessing import dataprocessing as dp
-import matplotlib.pyplot as plt
-import dask.dataframe as dd
-import pickle
-
-from preprocessing.customdataloader import TransVidDataset, ContrastiveDataSet
-from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
 from torchvision import models
 
-from sklearn.preprocessing import MinMaxScaler
+# Std
+import os
+import shutil
+
+# Data
+import pandas as pd
+import pickle
+
+# Custom
+from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
+from preprocessing.customdataloader import TransVidDataset, ContrastiveDataSet
+from preprocessing import dataprocessing as dp
+
+# SKData
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.preprocessing import StandardScaler
 
 
 def data_loading(data_frame, train_len, bs):
@@ -59,6 +68,7 @@ def train_model(model, train, test, batch_size, epochs, learning_rate):
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     contrastive_loss = NT_Xent(batch_size, 0.5, 1)
     device = torch.device("cuda:0")
+    print(model)
     states = ["train", "val"]
     epoch = 0
     best_loss = 100.0
@@ -95,12 +105,12 @@ def train_model(model, train, test, batch_size, epochs, learning_rate):
         epoch += 1
 
 
-def kmeans(outputs, file_paths, k=5):
+def kmeans(outputs, file_paths, k=20):
     """Completes KMEANS clustering and saves
     images to test directory within their clusters."""
     kmodel = KMeans(n_clusters=k, n_jobs=4, random_state=728)
-    kmodel.fit(outputs)
-    kpredictions = kmodel.predict(outputs)
+    kmodel.fit(outputs.iloc[:, :100])
+    kpredictions = kmodel.predict(outputs.iloc[:, :100])
 
     for i in range(k):
         os.makedirs(
@@ -118,37 +128,54 @@ def kmeans(outputs, file_paths, k=5):
         )
 
 
-def find_k(outputs):
-    K = range(1, 100)
+def pca_select_reduce(outputs):
+    X_Std = StandardScaler().fit_transform(outputs)
+    pca = PCA(n_components=15)
+    principal_components = pca.fit_transform(X_Std)
+    pca_components = pd.DataFrame(principal_components)
+    plt.scatter(pca_components[0], pca_components[1], alpha=0.1, color="black")
+    plt.xlabel("PCA1")
+    plt.ylabel("PCA2")
+    plt.show()
+    return pca_components
+
+
+def find_k(pca_components):
+    K = range(1, 50)
+    sum_sq_dis = []
     for k in K:
         km = KMeans(n_clusters=k)
-        km = km.fit(outputs)
+        km = km.fit(pca_components.iloc[:, :3])
         sum_sq_dis.append(km.inertia_)
-        plt.plot(K, Sum_of_squared_distances, "bx-")
-        plt.xlabel("k")
-        plt.ylabel("Sum_of_squared_distances")
-        plt.title("Elbow Method For Optimal k")
-        plt.show()
+    plt.plot(K, sum_sq_dis, "bx-")
+    plt.xlabel("k")
+    plt.ylabel("Sum_of_squared_distances")
+    plt.title("Elbow Method For Optimal k")
+    plt.show()
 
 
-def eval_model(df, sample_size, batch_size):
+def eval_model(model_pth, df, sample_size, batch_size):
     train_set, test_set = data_loading(df, sample_size, batch_size)
-    model = load_model()
-    model = model.eval()
+    model = SpatioTemporalContrastiveModel(pretrained=True)
+    model = model.add_projector()
+    model.load_state_dict(torch.load(model_pth))
+    model = torch.nn.Sequential(*(list(model.children())[:-1]))
+    print(model)
     outputs = []
     file_paths = []
 
     with torch.no_grad():
         for i in test_set:
-            data = i["data"][0].permute(0, 3, 2, 1, 4)
+            data = i["data"][0]
             output = model(data.float())
             vid = i["fp"]
-            print(vid)
-            outputs.append(output.numpy().squeeze(0))
+            print(output.shape)
+            outputs.append(output.numpy().squeeze((0, 2, 3, 4)))
             file_paths.append(vid)
             print(len(file_paths))
             print(len(outputs))
-    kmeans(outputs, file_paths, k=20)
+    pca_components = pca_select_reduce(outputs)
+    kmeans(pca_components, file_paths)
 
 
 def pre_process_data(samples, fp):
@@ -180,22 +207,26 @@ def load_data(fp):
 
 
 def main():
-    torch.manual_seed(0)
-    learning_rate = 0.4
+    """learning_rate = 0.05
     device = torch.device("cuda:0")
-    model = SpatioTemporalContrastiveModel()
+    model = SpatioTemporalContrastiveModel(pretrained=True)
     model = model.add_projector()
     model = model.to(device)
-    batch_size = 16
+    batch_size = 14
     df = load_data(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
     )
     train_set, test_set = data_loading(df, 2000, batch_size)
     train_model(
-        model, train_set, test_set, batch_size, epochs=100, learning_rate=learning_rate
+        model, train_set, test_set, batch_size, epochs=300, learning_rate=learning_rate
+    )"""
+    df = load_data(
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
     )
+    eval_model("/home/ed/PhD/Temporal-3DCNN-pytorch/logs/0.05/model.pt", df, 2300, 1)
 
-    # pre_process_data(0, "pickle_test.pkl")
+
+# pre_process_data(0, "pickle_test.pkl")
 
 
 if __name__ == "__main__":

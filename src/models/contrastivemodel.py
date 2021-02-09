@@ -3,23 +3,25 @@ import torch.nn as nn
 import torch
 import numpy as np
 
-class SpatioTemporalContrastiveModel():
-    def __init__(self):
 
-        self.base_model = models.video.r3d_18(pretrained=True)
+class SpatioTemporalContrastiveModel:
+    def __init__(self, pretrained):
+        if pretrained:
+            self.base_model = models.video.r3d_18(pretrained=True)
+        else:
+            self.base_model = models.video.r3d_18(pretrained=False)
 
     def add_projector(self):
 
         self.base_model.fc = nn.Sequential(
-            nn.Linear(512, 512),
-            nn.ReLU(inplace=True),
-            nn.Linear(512, 128)
+            nn.Linear(512, 512), nn.ReLU(inplace=True), nn.Linear(512, 128)
         )
 
         return self.base_model
 
     def base_model(self):
         return self.base_model
+
 
 class NT_Xent(nn.Module):
     def __init__(self, batch_size, temperature, world_size):
