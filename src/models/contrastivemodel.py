@@ -29,7 +29,7 @@ class NT_Xent(nn.Module):
         self.batch_size = batch_size
         self.temperature = temperature
         self.world_size = world_size
-
+        # this is a comment
         self.mask = self.mask_correlated_samples(batch_size, world_size)
         self.criterion = nn.CrossEntropyLoss(reduction="sum")
         self.similarity_f = nn.CosineSimilarity(dim=2)

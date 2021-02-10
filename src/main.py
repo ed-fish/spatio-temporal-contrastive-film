@@ -19,7 +19,7 @@ import pickle
 # Custom
 from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
 from preprocessing.customdataloader import TransVidDataset, ContrastiveDataSet
-from preprocessing import dataprocessing as dp
+from preprocessing import dataprocessing as dd
 
 # SKData
 from sklearn.cluster import KMeans
@@ -184,7 +184,7 @@ def pre_process_data(samples, fp):
     )
     tr = dp.create_trans_data_frame(df, samples, fp)
     df = dd.from_pandas(tr)
-    tr.to_pickle("data10k.pkl")
+    tr.to_pickle("data{}.pkl".format(samples))
 
 
 def load_data(fp):
@@ -206,7 +206,7 @@ def load_data(fp):
     return data_list
 
 
-def main():
+def training():
     """learning_rate = 0.05
     device = torch.device("cuda:0")
     model = SpatioTemporalContrastiveModel(pretrained=True)
@@ -218,15 +218,18 @@ def main():
     )
     train_set, test_set = data_loading(df, 2000, batch_size)
     train_model(
-        model, train_set, test_set, batch_size, epochs=300, learning_rate=learning_rate
+        model, train_set, test_set, batch_si=_ze, epochs=300, learning_rate=learning_rate
     )"""
-    df = load_data(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
+
+
+def main():
+    cache_file = (
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt"
     )
-    eval_model("/home/ed/PhD/Temporal-3DCNN-pytorch/logs/0.05/model.pt", df, 2300, 1)
-
-
-# pre_process_data(0, "pickle_test.pkl")
+    df = dd.create_data_frame(cache_file)
+    print(df)
+    trans_df = dd.create_trans_data_frame(df, 40000, "data40k.pkl")
+    print(trans_df)
 
 
 if __name__ == "__main__":
