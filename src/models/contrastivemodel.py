@@ -1,26 +1,91 @@
 from torchvision import models
-import torch.nn as nn
 import torch
+import torch.nn as nn
 import numpy as np
 
+# See Tomcat, B. Twitch 2021
+class Model(nn.Module):
+    def __init__(self):
+        super(Model, self).__init__()
 
-class SpatioTemporalContrastiveModel:
-    def __init__(self, pretrained):
+    def train(
+        self,
+        data_loader,
+        batch_size,
+        optimizer,
+        epochs,
+        logging_object,
+        loss,
+        gpu=False,
+    ):
+        if gpu:
+            device = torch.device("cuda:0")
+
+        epoch = 0
+
+        best_loss = 5
+        best_epoch = 0
+
+        while epoch < epochs:
+            total = 0
+            running_loss = 0
+            for bn, batch in enumerate(data_loader):
+                optimizer.zero_grad()
+                data = batch["data"]
+                zi = data[0].to(device)
+                zj = data[1].to(device)
+                zi_embedding = self.forward(zi)
+                zj_embedding = self.forward(zj)
+                loss = loss.forward(zi_embedding, zj_embedding)
+                running_loss += loss.item()
+                total += batch_size
+                loss.backward()
+                optimizer.step()
+                if bn % logging_object["interval"]:
+                    print()
+
+            if running_loss < best_loss:
+                torch.save(
+                    self.state_dict(),
+                    logging_object["directory"] + "/model{}.pt".format(epoch),
+                )
+                best_loss = running_loss
+                best_epoch = epoch
+
+            print("Epoch {} \n Loss : {}".format(epoch, running_loss / total))
+            logging_object["writer"].add_scalar(
+                "training loss", running_loss / total, epoch
+            )
+
+            logging_object["writer"].flush()
+            epoch += 1
+
+        print(
+            "Model completed training. Final loss = {}, Best loss = {}, Best Epoch = {}".format(
+                running_loss, best_loss, best_epoch
+            )
+        )
+
+
+class SpatioTemporalContrastiveModel(Model):
+    def __init__(self, input_layer_size, output_layer_size, pretrained=False):
+        super(SpatioTemporalContrastiveModel, self).__init__()
         if pretrained:
             self.base_model = models.video.r3d_18(pretrained=True)
         else:
             self.base_model = models.video.r3d_18(pretrained=False)
 
-    def add_projector(self):
-
         self.base_model.fc = nn.Sequential(
-            nn.Linear(512, 512), nn.ReLU(inplace=True), nn.Linear(512, 128)
+            nn.Linear(512, input_layer_size),
+            nn.ReLU(inplace=True),
+            nn.Linear(input_layer_size, output_layer_size),
         )
 
+    def create_model(self):
         return self.base_model
 
-    def base_model(self):
-        return self.base_model
+    def print_model(self):
+        print(self.base_model)
 
 
 class NT_Xent(nn.Module):

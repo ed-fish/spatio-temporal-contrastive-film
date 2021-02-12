@@ -125,7 +125,6 @@ def split_frames(file_path, min_clip_len, n_frames, debug=False):
 
 
 def create_trans_data_frame(data_frame, n_samples, save_path):
-    data_list = []
     if n_samples == 0:
         n_samples = len(data_frame)
     f = open(save_path, "wb")

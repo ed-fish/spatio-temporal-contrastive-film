@@ -18,7 +18,11 @@ import pickle
 
 # Custom
 from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
-from preprocessing.customdataloader import TransVidDataset, ContrastiveDataSet
+from preprocessing.customdataloader import (
+    TransVidDataset,
+    ContrastiveDataSet,
+    DataLoader,
+)
 from preprocessing import dataprocessing as dd
 
 # SKData
@@ -27,73 +31,12 @@ from sklearn.decomposition import PCA
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 
-
-def data_loading(data_set, bs):
-    data_set = load_data(data_set)
-    dataset = ContrastiveDataSet(data_set)
-    print("dataset length", len(dataset))
-    train_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=bs, shuffle=True, num_workers=4, drop_last=True
-    )
-
-    return train_loader
-
-
+# fix me
 def read_data_frame(pkl_file):
     return pd.read_pickle(pkl_file)
 
 
-def load_model():
-    resnet = models.video.r3d_18(pretrained=True)
-    return resnet
-
-
-def train_model(model, train, batch_size, epochs, learning_rate):
-    # data_set = data_loading(train, batch_size)
-    data_set = train
-    logging_dir = os.path.join("logs", str(learning_rate))
-    os.makedirs(logging_dir, exist_ok=True)
-    print(logging_dir)
-    model_dir = os.path.join(logging_dir, "model")
-    os.makedirs(model_dir, exist_ok=True)
-    writer = SummaryWriter(
-        log_dir="logs/" + str(learning_rate)
-    )  # todo convert to argparser
-    # optimization as described in paper
-    optimizer = torch.optim.Adam(model.parameters(), learning_rate)
-    contrastive_loss = NT_Xent(batch_size, 0.5, 1)
-    device = torch.device("cuda:0")
-    print(model)
-    epoch = 0
-    model = model.train()  # produces a model train woo woo
-    best_loss = 100.0
-    while epoch < epochs:
-        total = 0
-        running_loss = 0
-        for bn, batch in enumerate(data_set):
-            optimizer.zero_grad()
-            data = batch["data"]
-            zi = data[0].to(device)
-            zj = data[1].to(device)
-            zi_embedding = model(zi)
-            zj_embedding = model(zj)
-            loss = contrastive_loss.forward(zi_embedding, zj_embedding)
-            running_loss += loss.item()
-            total += batch_size
-            loss.backward()
-            optimizer.step()
-            print("{}, loss = {}".format(bn, running_loss))
-
-        torch.save(model.state_dict(), logging_dir + "/model{}.pt".format(epoch))
-        best_loss = running_loss
-
-        print("Epoch {} \n Loss : {}".format(epoch, running_loss / total))
-        writer.add_scalar("training loss", running_loss / total, epoch)
-
-        writer.flush()
-        epoch += 1
-
-
+# refactor me please
 def kmeans(outputs, file_paths, k=250):
     """Completes KMEANS clustering and saves
     images to test directory within their clusters."""
@@ -177,49 +120,27 @@ def pre_process_data(samples, fp):
     tr.to_pickle("data{}.pkl".format(samples))
 
 
-def load_data(fp):
-    data_list = []
-    pklfl = open(fp, "rb")
-    i = 0
-    while i < 2500:
-        try:
-            data_list.append(pickle.load(pklfl))
-            print(len(data_list))
-            i += 1
-        except EOFError:
-            break
-    pklfl.close()
-
-    data_list = pd.DataFrame(
-        data_list, columns=["Genre", "Name", "Scene", "Fp", "Data"]
-    )
-    return data_list
-
-
-def training(data_base):
-    learning_rate = 0.07
-    device = torch.device("cuda:0")
-    model = SpatioTemporalContrastiveModel(pretrained=True)
-    model = model.add_projector()
-    model = model.to(device)
-    batch_size = 30
-    df = data_loading(data_base, batch_size)
-    train_model(model, df, batch_size, epochs=300, learning_rate=learning_rate)
+logging_object = {
+    "writer": SummaryWriter(),
+    "directory": "/home/ed/PhD/Temporal-3DCNN-pytorch/logs",
+    "interval": 5,
+}
 
 
 def main():
-    #    cache_file = (
-    #        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt"
-    #    )
-    #    df = dd.create_data_frame(cache_file)
-    #    print(df)
-    #    trans_df = dd.create_trans_data_frame(df, 100, "data100.pkl")
-    #
-    #    print(trans_df)
-
-    data = "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
-
-    eval_model("/home/ed/PhD/Temporal-3DCNN-pytorch/src/logs/0.07/model30.pt", data, 1)
+    spatio_model = SpatioTemporalContrastiveModel(512, 128)
+    data_set = DataLoader(
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl", 100
+    )
+    spatio_model.train(
+        data_set,
+        32,
+        torch.optim.Adam(spatio_model.parameters(), 0.5),
+        10,
+        logging_object,
+        NT_Xent,
+        True,
+    )
 
 
 if __name__ == "__main__":
