@@ -28,20 +28,15 @@ from sklearn.preprocessing import MinMaxScaler
 from sklearn.preprocessing import StandardScaler
 
 
-def data_loading(data_frame, train_len, bs):
-    data_frame = data_frame.sample(frac=1)
-    dataset = ContrastiveDataSet(data_frame)
+def data_loading(data_set, bs):
+    data_set = load_data(data_set)
+    dataset = ContrastiveDataSet(data_set)
     print("dataset length", len(dataset))
-    train, test = torch.utils.data.random_split(
-        dataset, [train_len, len(dataset) - train_len]
-    )
     train_loader = torch.utils.data.DataLoader(
-        train, batch_size=bs, shuffle=True, num_workers=4, drop_last=True
+        dataset, batch_size=bs, shuffle=True, num_workers=4, drop_last=True
     )
-    test_loader = torch.utils.data.DataLoader(
-        test, batch_size=bs, shuffle=True, num_workers=4, drop_last=True
-    )
-    return train_loader, test_loader
+
+    return train_loader
 
 
 def read_data_frame(pkl_file):
@@ -53,8 +48,9 @@ def load_model():
     return resnet
 
 
-def train_model(model, train, test, batch_size, epochs, learning_rate):
-
+def train_model(model, train, batch_size, epochs, learning_rate):
+    # data_set = data_loading(train, batch_size)
+    data_set = train
     logging_dir = os.path.join("logs", str(learning_rate))
     os.makedirs(logging_dir, exist_ok=True)
     print(logging_dir)
@@ -64,53 +60,46 @@ def train_model(model, train, test, batch_size, epochs, learning_rate):
         log_dir="logs/" + str(learning_rate)
     )  # todo convert to argparser
     # optimization as described in paper
-    criterion = torch.nn.BCEWithLogitsLoss()
     optimizer = torch.optim.Adam(model.parameters(), learning_rate)
     contrastive_loss = NT_Xent(batch_size, 0.5, 1)
     device = torch.device("cuda:0")
     print(model)
-    states = ["train", "val"]
     epoch = 0
+    model = model.train()  # produces a model train woo woo
     best_loss = 100.0
     while epoch < epochs:
-        for state in states:
+        total = 0
+        running_loss = 0
+        for bn, batch in enumerate(data_set):
+            optimizer.zero_grad()
+            data = batch["data"]
+            zi = data[0].to(device)
+            zj = data[1].to(device)
+            zi_embedding = model(zi)
+            zj_embedding = model(zj)
+            loss = contrastive_loss.forward(zi_embedding, zj_embedding)
+            running_loss += loss.item()
+            total += batch_size
+            loss.backward()
+            optimizer.step()
+            print("{}, loss = {}".format(bn, running_loss))
 
-            total = 0.0
-            running_loss = 0.0
-            data_set = train if state == "train" else test
-            model.train() if state == "train" else model.eval()
-            for _, batch in enumerate(data_set):
-                optimizer.zero_grad()
-                data = batch["data"]
-                zi = data[0].to(device)
-                zj = data[1].to(device)
-                zi_embedding = model(zi)
-                zj_embedding = model(zj)
-                loss = contrastive_loss.forward(zi_embedding, zj_embedding)
-                running_loss += loss.item()
-                total += zi_embedding.size(0)
+        torch.save(model.state_dict(), logging_dir + "/model{}.pt".format(epoch))
+        best_loss = running_loss
 
-                if state == "train":
-                    loss.backward()
-                    optimizer.step()
-                else:
-                    if running_loss < best_loss:
-                        torch.save(model.state_dict(), logging_dir + "/model.pt")
-                        best_loss = running_loss
+        print("Epoch {} \n Loss : {}".format(epoch, running_loss / total))
+        writer.add_scalar("training loss", running_loss / total, epoch)
 
-            print("{} \n Epoch {} \n Loss : {}".format(state, epoch, loss / total))
-            writer.add_scalar("Loss/{}".format(state), running_loss, epoch)
-            writer.flush()
-
+        writer.flush()
         epoch += 1
 
 
-def kmeans(outputs, file_paths, k=20):
+def kmeans(outputs, file_paths, k=250):
     """Completes KMEANS clustering and saves
     images to test directory within their clusters."""
     kmodel = KMeans(n_clusters=k, n_jobs=4, random_state=728)
-    kmodel.fit(outputs.iloc[:, :100])
-    kpredictions = kmodel.predict(outputs.iloc[:, :100])
+    kmodel.fit(outputs)
+    kpredictions = kmodel.predict(outputs)
 
     for i in range(k):
         os.makedirs(
@@ -154,28 +143,29 @@ def find_k(pca_components):
     plt.show()
 
 
-def eval_model(model_pth, df, sample_size, batch_size):
-    train_set, test_set = data_loading(df, sample_size, batch_size)
+def eval_model(model_pth, df, batch_size):
+    data_set = data_loading(df, batch_size)
     model = SpatioTemporalContrastiveModel(pretrained=True)
     model = model.add_projector()
     model.load_state_dict(torch.load(model_pth))
     model = torch.nn.Sequential(*(list(model.children())[:-1]))
     print(model)
+    model = model.to(torch.device("cuda:0"))
     outputs = []
     file_paths = []
 
     with torch.no_grad():
-        for i in test_set:
-            data = i["data"][0]
+        for i in data_set:
+            data = i["data"][0].to(torch.device("cuda:0"))
             output = model(data.float())
+            output = output.cpu()
             vid = i["fp"]
             print(output.shape)
             outputs.append(output.numpy().squeeze((0, 2, 3, 4)))
             file_paths.append(vid)
             print(len(file_paths))
             print(len(outputs))
-    pca_components = pca_select_reduce(outputs)
-    kmeans(pca_components, file_paths)
+    kmeans(outputs, file_paths)
 
 
 def pre_process_data(samples, fp):
@@ -206,30 +196,30 @@ def load_data(fp):
     return data_list
 
 
-def training():
-    """learning_rate = 0.05
+def training(data_base):
+    learning_rate = 0.07
     device = torch.device("cuda:0")
     model = SpatioTemporalContrastiveModel(pretrained=True)
     model = model.add_projector()
     model = model.to(device)
-    batch_size = 14
-    df = load_data(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
-    )
-    train_set, test_set = data_loading(df, 2000, batch_size)
-    train_model(
-        model, train_set, test_set, batch_si=_ze, epochs=300, learning_rate=learning_rate
-    )"""
+    batch_size = 30
+    df = data_loading(data_base, batch_size)
+    train_model(model, df, batch_size, epochs=300, learning_rate=learning_rate)
 
 
 def main():
-    cache_file = (
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt"
-    )
-    df = dd.create_data_frame(cache_file)
-    print(df)
-    trans_df = dd.create_trans_data_frame(df, 40000, "data40k.pkl")
-    print(trans_df)
+    #    cache_file = (
+    #        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt"
+    #    )
+    #    df = dd.create_data_frame(cache_file)
+    #    print(df)
+    #    trans_df = dd.create_trans_data_frame(df, 100, "data100.pkl")
+    #
+    #    print(trans_df)
+
+    data = "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl"
+
+    eval_model("/home/ed/PhD/Temporal-3DCNN-pytorch/src/logs/0.07/model30.pt", data, 1)
 
 
 if __name__ == "__main__":
