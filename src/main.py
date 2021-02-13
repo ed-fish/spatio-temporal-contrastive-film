@@ -132,13 +132,14 @@ def main():
     data_set = DataLoader(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl", 100
     )
+    loss = NT_Xent(32, 0.5, 1)
     spatio_model.train(
         data_set,
         32,
         torch.optim.Adam(spatio_model.parameters(), 0.5),
         10,
         logging_object,
-        NT_Xent,
+        loss,
         True,
     )
 

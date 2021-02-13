@@ -15,17 +15,20 @@ class Model(nn.Module):
         optimizer,
         epochs,
         logging_object,
-        loss,
+        loss_alg,
         gpu=False,
     ):
         if gpu:
             device = torch.device("cuda:0")
+            self.to(device)
 
         epoch = 0
 
         best_loss = 5
         best_epoch = 0
-
+        data_loader = torch.utils.data.DataLoader(
+            data_loader, batch_size, shuffle=True, num_workers=6, drop_last=True
+        )
         while epoch < epochs:
             total = 0
             running_loss = 0
@@ -36,7 +39,7 @@ class Model(nn.Module):
                 zj = data[1].to(device)
                 zi_embedding = self.forward(zi)
                 zj_embedding = self.forward(zj)
-                loss = loss.forward(zi_embedding, zj_embedding)
+                loss = loss_alg.forward(zi_embedding, zj_embedding)
                 running_loss += loss.item()
                 total += batch_size
                 loss.backward()
@@ -86,6 +89,10 @@ class SpatioTemporalContrastiveModel(Model):
 
     def print_model(self):
         print(self.base_model)
+
+    def forward(self, x):
+        output = self.base_model(x)
+        return output
 
 
 class NT_Xent(nn.Module):
