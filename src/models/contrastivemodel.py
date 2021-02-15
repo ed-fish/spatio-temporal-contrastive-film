@@ -2,6 +2,18 @@ from torchvision import models
 import torch
 import torch.nn as nn
 import numpy as np
+import pandas as pd
+import os
+import pickle as pkl
+
+
+class Identity(nn.Module):
+    def __init__(self):
+        super(Identity, self).__init__()
+
+    def forward(self, x):
+        return x
+
 
 # See Tomcat, B. Twitch 2021
 class Model(nn.Module):
@@ -23,7 +35,6 @@ class Model(nn.Module):
             self.to(device)
 
         epoch = 0
-
         best_loss = 5
         best_epoch = 0
         data_loader = torch.utils.data.DataLoader(
@@ -55,7 +66,7 @@ class Model(nn.Module):
                 best_loss = running_loss
                 best_epoch = epoch
 
-            print("Epoch {} \n Loss : {}".format(epoch, running_loss / total))
+            print(f"Epoch {epoch} \n Loss : {running_loss/total}")
             logging_object["writer"].add_scalar(
                 "training loss", running_loss / total, epoch
             )
@@ -68,6 +79,37 @@ class Model(nn.Module):
                 running_loss, best_loss, best_epoch
             )
         )
+
+    def eval_model(
+        self,
+        data_loader,
+        batch_size,
+        logging_object,
+        model_weights,
+        gpu=True,
+        debug=False,
+    ):
+        data_loader = torch.utils.data.DataLoader(
+            data_loader, batch_size, shuffle=True, num_workers=6, drop_last=True
+        )
+        self.load_state_dict(torch.load(model_weights), strict=False)
+        self.base_model.fc = Identity()
+        self = self.to(torch.device("cuda:0"))
+        print(self)
+
+        output_df = []
+        with torch.no_grad():
+            for i in data_loader:
+                data = i["data"][0].to(torch.device("cuda:0"))
+                output = self(data.float())
+                output = output.cpu()
+                if debug:
+                    print("outputs shape from model", output.shape)
+                output = output.numpy()
+                output_df.append([i["name"], i["fp"], i["scene"], output])
+        output_df = pd.DataFrame(output_df, columns=["name", "fp", "scene", "data"])
+        output_df.to_pickle(os.path.join(logging_object["directory"], "output.pkl"))
+        print(output_df)
 
 
 class SpatioTemporalContrastiveModel(Model):
@@ -83,6 +125,8 @@ class SpatioTemporalContrastiveModel(Model):
             nn.ReLU(inplace=True),
             nn.Linear(input_layer_size, output_layer_size),
         )
+
+        self.create_model()
 
     def create_model(self):
         return self.base_model

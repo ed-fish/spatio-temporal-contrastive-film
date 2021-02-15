@@ -86,31 +86,6 @@ def find_k(pca_components):
     plt.show()
 
 
-def eval_model(model_pth, df, batch_size):
-    data_set = data_loading(df, batch_size)
-    model = SpatioTemporalContrastiveModel(pretrained=True)
-    model = model.add_projector()
-    model.load_state_dict(torch.load(model_pth))
-    model = torch.nn.Sequential(*(list(model.children())[:-1]))
-    print(model)
-    model = model.to(torch.device("cuda:0"))
-    outputs = []
-    file_paths = []
-
-    with torch.no_grad():
-        for i in data_set:
-            data = i["data"][0].to(torch.device("cuda:0"))
-            output = model(data.float())
-            output = output.cpu()
-            vid = i["fp"]
-            print(output.shape)
-            outputs.append(output.numpy().squeeze((0, 2, 3, 4)))
-            file_paths.append(vid)
-            print(len(file_paths))
-            print(len(outputs))
-    kmeans(outputs, file_paths)
-
-
 def pre_process_data(samples, fp):
     df = dp.create_data_frame(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt"
@@ -133,7 +108,7 @@ def main():
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl", 100
     )
     loss = NT_Xent(32, 0.5, 1)
-    spatio_model.train(
+    """spatio_model.train(
         data_set,
         32,
         torch.optim.Adam(spatio_model.parameters(), 0.5),
@@ -141,7 +116,11 @@ def main():
         logging_object,
         loss,
         True,
-    )
+    )"""
+
+    weights = "/home/ed/PhD/Temporal-3DCNN-pytorch/logs/0.07/model30.pt"
+
+    spatio_model.eval_model(data_set, 1, logging_object, weights, True, debug=True)
 
 
 if __name__ == "__main__":
