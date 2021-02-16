@@ -49,15 +49,13 @@ class Model(nn.Module):
                 zj_embedding = self.forward(zj)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
                 running_loss += loss.item()
-                total += batch_size
+                total += config.batch_size
                 loss.backward()
                 optimizer.step()
                 if bn % 10:
                     print("batch n", bn, loss)
             if running_loss < best_loss:
-                torch.save(
-                    self.state_dict(), config.feature_directory + f"/model{epoch}.pt"
-                )
+                torch.save(self.state_dict(), config.feature_directory + "/model.pt")
                 best_loss = running_loss
                 best_epoch = epoch
 
@@ -80,7 +78,7 @@ class Model(nn.Module):
         debug=False,
     ):
         data_loader = torch.utils.data.DataLoader(
-            data_loader, config.batch_size, shuffle=True, num_workers=6, drop_last=True
+            data_loader, 1, shuffle=True, num_workers=6, drop_last=True
         )
         self.load_state_dict(torch.load(model_features), strict=False)
         self.base_model.fc = Identity()
@@ -98,7 +96,7 @@ class Model(nn.Module):
                 output = output.numpy().squeeze(0)
                 output_df.append([i["name"], i["fp"], i["scene"], output])
         output_df = pd.DataFrame(output_df, columns=["name", "fp", "scene", "data"])
-        filepath = config.feature_directory + "/eval_output.pkl"
+        filepath = config.eval_directory + "/eval_output.pkl"
         output_df.to_pickle(filepath)
         print(output_df)
 

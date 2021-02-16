@@ -14,6 +14,7 @@ from preprocessing.customdataloader import (
     ContrastiveDataSet,
     DataLoader,
 )
+from eval.visualisation import Visualisation
 from preprocessing import dataprocessing as dd
 
 
@@ -30,10 +31,12 @@ class Config:
         gpu=True,
     ):
         run_directory = os.path.join(
-            base_directory, str(sample_size), str(learning_rate), str(batch_size)
+            base_directory, str(sample_size), str(learning_rate)
         )
         self.feature_directory = os.path.join(run_directory, "features")
+        self.eval_directory = os.path.join(run_directory, "eval")
         os.makedirs(run_directory, exist_ok=True)
+        os.makedirs(self.eval_directory, exist_ok=True)
         os.makedirs(self.feature_directory, exist_ok=True)
         self.writer = SummaryWriter(run_directory)
         self.learning_rate = learning_rate
@@ -46,7 +49,7 @@ class Config:
 
 
 logging = Config(
-    0.5, 32, "/home/ed/PhD/Temporal-3DCNN-pytorch/src/logs", 100, 512, 128, 10, True
+    0.5, 32, "/home/ed/PhD/Temporal-3DCNN-pytorch/logs", 100, 512, 128, 10, True
 )
 
 
@@ -64,17 +67,19 @@ def main(input_data, config, train=False):
             config,
         )
     else:
-        weights = "/home/ed/PhD/Temporal-3DCNN-pytorch/model165.pt"
+        weights = config.feature_directory + "/model.pt"
         spatio_model.eval_model(
             data_set,
             config,
             weights,
         )
+        vis = Visualisation(config)
+        vis.tsne()
 
 
 if __name__ == "__main__":
     main(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/data2500.pkl",
         logging,
-        True,
+        False,
     )
