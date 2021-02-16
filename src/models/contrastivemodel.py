@@ -23,24 +23,21 @@ class Model(nn.Module):
     def train(
         self,
         data_loader,
-        batch_size,
         optimizer,
-        epochs,
-        logging_object,
         loss_alg,
-        gpu=False,
+        config,
     ):
-        if gpu:
+        if config.gpu:
             device = torch.device("cuda:0")
             self.to(device)
 
         epoch = 0
-        best_loss = 5
+        best_loss = 100.0
         best_epoch = 0
         data_loader = torch.utils.data.DataLoader(
-            data_loader, batch_size, shuffle=True, num_workers=6, drop_last=True
+            data_loader, config.batch_size, shuffle=True, num_workers=6, drop_last=True
         )
-        while epoch < epochs:
+        while epoch < config.epochs:
             total = 0
             running_loss = 0
             for bn, batch in enumerate(data_loader):
@@ -55,20 +52,18 @@ class Model(nn.Module):
                 total += batch_size
                 loss.backward()
                 optimizer.step()
-                if bn % logging_object["interval"]:
+                if bn % 10:
                     print("batch n", bn, loss)
-
-            torch.save(
-                self.state_dict(),
-                "model{}.pt".format(epoch),
-            )
+            if running_loss < best_loss:
+                torch.save(
+                    self.state_dict(), config.feature_directory + f"/model{epoch}.pt"
+                )
+                best_loss = running_loss
+                best_epoch = epoch
 
             print(f"Epoch {epoch} \n Loss : {running_loss/total}")
-            logging_object["writer"].add_scalar(
-                "training loss", running_loss / total, epoch
-            )
-
-            logging_object["writer"].flush()
+            config.writer.add_scalar("training loss", running_loss / total, epoch)
+            config.writer.flush()
             epoch += 1
 
         print(
@@ -80,16 +75,14 @@ class Model(nn.Module):
     def eval_model(
         self,
         data_loader,
-        batch_size,
-        logging_object,
-        model_weights,
-        gpu=True,
+        config,
+        model_features,
         debug=False,
     ):
         data_loader = torch.utils.data.DataLoader(
-            data_loader, batch_size, shuffle=True, num_workers=6, drop_last=True
+            data_loader, config.batch_size, shuffle=True, num_workers=6, drop_last=True
         )
-        self.load_state_dict(torch.load(model_weights), strict=False)
+        self.load_state_dict(torch.load(model_features), strict=False)
         self.base_model.fc = Identity()
         self = self.to(torch.device("cuda:0"))
         print(self)
@@ -105,7 +98,7 @@ class Model(nn.Module):
                 output = output.numpy().squeeze(0)
                 output_df.append([i["name"], i["fp"], i["scene"], output])
         output_df = pd.DataFrame(output_df, columns=["name", "fp", "scene", "data"])
-        filepath = "output.pkl"
+        filepath = config.feature_directory + "/eval_output.pkl"
         output_df.to_pickle(filepath)
         print(output_df)
 
