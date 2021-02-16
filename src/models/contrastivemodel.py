@@ -56,15 +56,12 @@ class Model(nn.Module):
                 loss.backward()
                 optimizer.step()
                 if bn % logging_object["interval"]:
-                    print()
+                    print("batch n", bn, loss)
 
-            if running_loss < best_loss:
-                torch.save(
-                    self.state_dict(),
-                    logging_object["directory"] + "/model{}.pt".format(epoch),
-                )
-                best_loss = running_loss
-                best_epoch = epoch
+            torch.save(
+                self.state_dict(),
+                "model{}.pt".format(epoch),
+            )
 
             print(f"Epoch {epoch} \n Loss : {running_loss/total}")
             logging_object["writer"].add_scalar(
@@ -105,10 +102,11 @@ class Model(nn.Module):
                 output = output.cpu()
                 if debug:
                     print("outputs shape from model", output.shape)
-                output = output.numpy()
+                output = output.numpy().squeeze(0)
                 output_df.append([i["name"], i["fp"], i["scene"], output])
         output_df = pd.DataFrame(output_df, columns=["name", "fp", "scene", "data"])
-        output_df.to_pickle(os.path.join(logging_object["directory"], "output.pkl"))
+        filepath = "output.pkl"
+        output_df.to_pickle(filepath)
         print(output_df)
 
 
