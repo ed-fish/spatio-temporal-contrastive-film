@@ -12,7 +12,7 @@ To use this function pass a dataframe with the columns `Filepath, Name, Scene, G
 ### Training the model
 An example config is given in `main.py`. Pass the config to main to train the model. 
 #
-## Evaluation
+### Evaluation
 Simply run the code with `Train=False` 
 The model will post all the data via a `SummaryWriter` to a directory specified in the config object. You can also create T-SNE and K-Means plots using the `Visualisation` class provided. 
 
