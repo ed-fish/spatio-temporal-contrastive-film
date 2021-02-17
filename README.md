@@ -14,7 +14,7 @@ An example config is given in `main.py`. Pass the config to main to train the mo
 
 ### Evaluation
 Simply run the code with `Train=False` 
-The model will post all the data via a `SummaryWriter` to a directory specified in the config object. You can also create T-SNE and K-Means plots using the `Visualisation` class provided. 
+The model will post all the data via a `SummaryWriter` to a directory specified in the config object. This will also contain a Tensorboard T-SNE Plot - for kmeans use the `kmeans = True` flag.
 
 If setup etc is too complicated rn check back in a couple of weeks as this repo is being updated daily.
 
