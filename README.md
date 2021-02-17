@@ -4,7 +4,7 @@ This repo is designed for unsupervised analysis of clips extracted from movie tr
 
 Check out the paper this implementation is based on here: https://arxiv.org/abs/2008.03800
 #
-### Data Pre-Processing - This method works but is convoluted at present
+### Data Pre-Processing
 First you will need to split your trailers into scenes. `PySceneDetect` works well for this. 
 The `create_trans_data_frame` function in `dataprocessing.py` will split your scenes into two transformed chunks of shape `1 x 16 x 112 x 112`. 
 To use this function pass a dataframe with the columns `Filepath, Name, Scene, Genre` and save the resulting pkl file. 
