@@ -1,6 +1,8 @@
 {
     "python.pythonPath": "/home/ed/.virtualenvs/cv/bin/python",
     "python.linting.enabled": true,
-    "python.linting.pylintEnabled": true,
-    "python.linting.flake8Enabled": false
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": false,
+    "python.linting.prospectorEnabled": false,
+    "python.linting.pylamaEnabled": true
 }

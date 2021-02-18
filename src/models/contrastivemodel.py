@@ -1,4 +1,4 @@
-from torchvision import models
+from torchvision import models, transforms
 import torch
 import torch.nn as nn
 import numpy as np
@@ -8,8 +8,7 @@ import pickle as pkl
 
 
 class Identity(nn.Module):
-    def __init__(self):
-        super(Identity, self).__init__()
+    """ Identity module used to remove projection head after training"""
 
     def forward(self, x):
         return x
@@ -20,7 +19,7 @@ class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
 
-    def train(
+    def train_model(
         self,
         data_loader,
         optimizer,
@@ -37,14 +36,15 @@ class Model(nn.Module):
         data_loader = torch.utils.data.DataLoader(
             data_loader, config.batch_size, shuffle=True, num_workers=6, drop_last=True
         )
+        self.train()
         while epoch < config.epochs:
             total = 0
             running_loss = 0
             for bn, batch in enumerate(data_loader):
                 optimizer.zero_grad()
                 data = batch["data"]
-                zi = data[0].to(device)
-                zj = data[1].to(device)
+                zi = data[0].to(device)  # Augmented sample : 1 e (x ...xn) e v(i)
+                zj = data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
                 zi_embedding = self.forward(zi)
                 zj_embedding = self.forward(zj)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
@@ -52,9 +52,13 @@ class Model(nn.Module):
                 total += config.batch_size
                 loss.backward()
                 optimizer.step()
-                if bn % 10:
+                if bn % 5 == 0:
                     print("batch n", bn, loss)
+            print(f"running loss {running_loss}, best_loss{best_loss}")
             if running_loss < best_loss:
+                print("model should save")
+                out_dir = os.path.join(config.feature_directory, "model.pt")
+                print(out_dir)
                 torch.save(self.state_dict(), config.feature_directory + "/model.pt")
                 best_loss = running_loss
                 best_epoch = epoch
@@ -78,12 +82,17 @@ class Model(nn.Module):
         debug=False,
     ):
         data_loader = torch.utils.data.DataLoader(
-            data_loader, 1, shuffle=True, num_workers=6, drop_last=True
+            data_loader,
+            1,
+            shuffle=True,
+            num_workers=6,
+            drop_last=True,
         )
         self.load_state_dict(torch.load(model_features), strict=False)
         self.base_model.fc = Identity()
-        self = self.to(torch.device("cuda:0"))
+        self.to(torch.device("cuda:0"))
         print(self)
+        self.eval()
 
         output_df = []
         with torch.no_grad():

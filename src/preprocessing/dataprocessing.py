@@ -1,12 +1,12 @@
 import pandas as pd
 import cv2
-import os
 import hashlib
 import random
 import numpy as np
-from PIL import Image
+import os
 from torchvision import transforms
 import pickle
+import matplotlib.pyplot as plt
 
 
 class Chunk:
@@ -15,46 +15,60 @@ class Chunk:
     Returns: 1 X 16 X 3 (BGR)
     """
 
-    def __init__(self, chunk_array, filepath):
+    def __init__(self, chunk_array, filepath, mean, std, norm):
         self.chunk_array = chunk_array
         self.width = chunk_array[0].shape[1]
         self.height = chunk_array[0].shape[0]
         self.filepath = filepath
+        self.mean = mean
+        self.std = std
         self._init_params()
+        self.norm = norm
 
     def _init_params(self):
+        """Define random transforms for whole chunk of clips (16 frames)
+        Use random seed to ensure all chunks have same transform (temporally consistent)"""
         random.seed(self.gen_hash(self.filepath))
-        self.crop_size = random.randint(int(int(self.height) / 2), int(self.height))
-        self.x = random.randrange(0, self.width - self.crop_size)
-        self.y = random.randrange(0, self.height - self.crop_size)
+        self.crop_size = random.randrange(10, int(self.height - 20))
+        self.x = random.randrange(10, self.width - self.crop_size + 10)
+        self.y = random.randrange(10, self.height - self.crop_size + 10)
         self.flip_val = random.randrange(-1, 2)
+        self.random_noise = random.randint(0, 100)
+        self.random_gray = False
+        self.random_blur = False
         # self.noise = np.random.uniform(0, 255,(self.crop_size, self.crop_size))
-        self.random_gray = random.randrange(1, 6)
-        self.random_blur = random.randrange(1, 4)
+        if random.random() < 0.30:
+            self.random_gray = True
+        if random.random() < 0.60:
+            self.random_blur = True
 
     def transform(self, img):
         # Crop image
-        image = img[self.y : self.y + self.crop_size, self.x : self.x + self.crop_size]
+        img = img[self.y : self.y + self.crop_size, self.x : self.x + self.crop_size]
         # Flip image
-        image = cv2.flip(img, self.flip_val)
+        img = cv2.flip(img, self.flip_val)
         # Generate and add noise
-        # noise = self.generate_noise(img)
-        # image = cv2.add(img, noise)
-        # Gray scale and blurring
-        if self.random_gray == 3:
+        gaussian_noise = np.zeros_like(img)
+        gaussian_noise = cv2.randn(gaussian_noise, 0, self.random_noise)
+        img = cv2.add(img, gaussian_noise, dtype=cv2.CV_8UC3)
+        if self.random_gray:
             img = cv2.cvtColor(
                 cv2.cvtColor(img, cv2.COLOR_BGR2GRAY), cv2.COLOR_GRAY2BGR
             )
-        if self.random_blur == 3:
+        if self.random_blur:
             img = cv2.GaussianBlur(img, (5, 5), 0)
+
+        # Resize for resnet - may need variable size depending on backbone
         img = cv2.resize(img, (112, 112), interpolation=cv2.INTER_AREA)
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        img = Image.fromarray(img)
+        # Transpose tensor to (W, H, C)
+
         tensorfy = transforms.ToTensor()
-        norm = transforms.Normalize(
-            (0.43216, 0.394666, 0.37645), (0.22803, 0.22145, 0.216989)
-        )
-        img = norm(tensorfy(img))
+        img = tensorfy(img)
+        # img = img.permute(2, 0, 1)
+        if self.norm:
+            norm = transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
+            img = norm(img)
 
         return img
 
@@ -70,6 +84,9 @@ class Chunk:
         # todo Convert to tensor
         for i, im in enumerate(self.chunk_array):
             trans_im = self.transform(im)
+            # plt.imshow(trans_im)
+            # plt.savefig("/home/ed/PhD/Temporal-3DCNN-pytorch/src/tests/0.png")
+
             self.chunk_array[i] = trans_im
         stacked_images = np.stack(self.chunk_array)
         return stacked_images
@@ -79,70 +96,85 @@ class Chunk:
         return hash_object
 
 
-def create_data_frame(cache_file, debug=False):
-    data_frame = pd.read_csv(cache_file, delimiter="/")
-    column = [0, 1, 2, 3, -1, -2]
-    data_frame.drop(data_frame.columns[column], axis=1, inplace=True)
-    data_frame.columns = ["Genre", "Name", "Scene"]
-    data_frame["Filepath"] = pd.read_csv(cache_file, delimiter="/n")
-    if debug:
+class DataTransformer:
+    def __init__(self, config, debug=False):
+        self.config = config
+        self.cache_file = self.config.cache_file
+
+    def transform_data_from_cache(self):
+        data_frame = pd.read_csv(self.cache_file, delimiter="/")
+        column = [0, 1, 2, 3, -1, -2]  # todo Fix to ensure variable length filepaths.
+        data_frame.drop(data_frame.columns[column], axis=1, inplace=True)
+        data_frame.columns = ["Genre", "Name", "Scene"]
+        data_frame["Filepath"] = pd.read_csv(self.cache_file, delimiter="/n")
         print("data frame created")
-    return data_frame
+        self.create_trans_data_frame(
+            data_frame, self.config.sample_size, self.config.trans_data_dir
+        )
 
+    def split_frames(self, file_path, min_clip_len, n_frames, debug=False):
+        count = 0
+        frame_list = []
+        clip_list = []
+        stack_list = []
 
-def split_frames(file_path, min_clip_len, n_frames, debug=False):
-    count = 0
-    frame_list = []
-    clip_list = []
-    stack_list = []
-
-    vidcap = cv2.VideoCapture(file_path)
-    success, image = vidcap.read()
-    frame_list.append(image)
-
-    while success:
+        vidcap = cv2.VideoCapture(file_path)
         success, image = vidcap.read()
-        if success:
-            if count % 2:
-                frame_list.append(image)
-            if len(frame_list) == n_frames:
-                clip_list.append(frame_list)
-                if debug:
-                    print("added chunk of length", len(frame_list))
-                    print("added to clip_list", len(clip_list))
-                frame_list = []
-            count += 1
+        frame_list.append(image)
 
-    if len(clip_list) >= min_clip_len:
-        for i, clip in enumerate(clip_list):
-            print(file_path)
-            chunk_obj = Chunk(clip, file_path + str(i))
-            trans_images = chunk_obj.chunk_maker()  # returns a list of stacked images
-            stack_list.append(trans_images)
-        return stack_list
-    else:
-        return 0
+        while success:
+            success, image = vidcap.read()
+            if success:
+                if count % 2:
+                    frame_list.append(image)
+                if len(frame_list) == n_frames:
+                    clip_list.append(frame_list)
+                    if debug:
+                        print("added chunk of length", len(frame_list))
+                        print("added to clip_list", len(clip_list))
+                    frame_list = []
+                count += 1
 
+        if len(clip_list) >= min_clip_len:
+            for i, clip in enumerate(clip_list):
+                chunk_obj = Chunk(
+                    clip,
+                    file_path + str(i),
+                    self.config.mean,
+                    self.config.std,
+                    norm=True,
+                )
+                trans_images = (
+                    chunk_obj.chunk_maker()
+                )  # returns a list of stacked images
+                stack_list.append(trans_images)
+            return stack_list
+        else:
+            return 0
 
-def create_trans_data_frame(data_frame, n_samples, save_path):
-    if n_samples == 0:
-        n_samples = len(data_frame)
-    f = open(save_path, "wb")
-    for i in range(0, n_samples):
-        fp = data_frame.at[i, "Filepath"]
-        name = data_frame.at[i, "Name"]
-        scene = data_frame.at[i, "Scene"]
-        genre = data_frame.at[i, "Genre"]
-        try:
-            stack_of_chunks = split_frames(fp, 3, 16)
+    def create_trans_data_frame(self, data_frame, n_samples, save_path):
+        if n_samples == 0:
+            n_samples = len(data_frame)
+        save_path = os.path.join(save_path, f"{str(n_samples)}.pkl")
+        pickle_file_path = open(save_path, "wb")
+        counter = 0
+        i = 0
+        while counter < n_samples:
+            fp = data_frame.at[i, "Filepath"]
+            name = data_frame.at[i, "Name"]
+            scene = data_frame.at[i, "Scene"]
+            genre = data_frame.at[i, "Genre"]
+            stack_of_chunks = self.split_frames(fp, 3, 16)
             if stack_of_chunks == 0:
-                # print('fail')
+                i += 1
                 continue
             else:
-                pickle.dump([genre, name, scene, fp, stack_of_chunks], f)
-                print("data added", i)
+                pickle.dump(
+                    [genre, name, scene, self.cache_file, stack_of_chunks],
+                    pickle_file_path,
+                )
+                print(f"data added db:{i}, sample{counter}")
+                counter += 1
+                i += 1
 
-        except ValueError:
-            print("Value error")
-            continue
-    f.close()
+        pickle_file_path.close()
