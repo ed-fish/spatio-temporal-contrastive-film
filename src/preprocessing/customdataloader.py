@@ -6,6 +6,13 @@ import pickle
 import torch
 import pandas as pd
 
+GENRE = "Genre"
+FILEPATH = "Filepath"
+SCENE = "Scene"
+T_DATA = "Transformed_Data"
+O_DATA = "Original_Data"
+NAME = "Name"
+
 # For supervised training
 class TransVidDataset(Dataset):
     def __init__(self, data_frame):
@@ -15,12 +22,20 @@ class TransVidDataset(Dataset):
         return len(self.data_frame)
 
     def __getitem__(self, idx):
-        fp = self.data_frame.at[idx, "filepath"]
-        name = self.data_frame.at[idx, "name"]
-        scene = self.data_frame.at[idx, "scene"]
-        genre = self.data_frame.at[idx, "genre"]
-        data = self.data_frame.at[idx, "data"]
-        sample = {"fp": fp, "name": name, "scene": scene, "genre": genre, "data": data}
+        fp = self.data_frame.at[idx, FILEPATH]
+        name = self.data_frame.at[idx, NAME]
+        scene = self.data_frame.at[idx, SCENE]
+        genre = self.data_frame.at[idx, GENRE]
+        t_data = self.data_frame.at[idx, T_DATA]
+        o_data = self.data_frame.at[idx, O_DATA]
+        sample = {
+            FILEPATH: fp,
+            NAME: name,
+            SCENE: scene,
+            GENRE: genre,
+            T_DATA: t_data,
+            O_DATA: o_data,
+        }
 
         return sample
 
@@ -37,34 +52,49 @@ class DataLoader:
         while i < sample_size:
             try:
                 data_list.append(pickle.load(pklfl))
-                print(len(data_list))
+
                 i += 1
             except EOFError:
                 break
 
         pklfl.close()
         data_list = pd.DataFrame(
-            data_list, columns=["Genre", "Name", "Scene", "Fp", "Data"]
+            data_list,
+            columns=[GENRE, NAME, FILEPATH, SCENE, O_DATA, T_DATA],
         )
+
         return data_list
 
     def __len__(self):
         return len(self.data_frame)
 
     def __getitem__(self, idx):
-        fp = self.data_frame.at[idx, "Fp"]
-        name = self.data_frame.at[idx, "Name"]
-        scene = self.data_frame.at[idx, "Scene"]
-        genre = self.data_frame.at[idx, "Genre"]
-        data = self.data_frame.at[idx, "Data"]
-        chunk_zi = data[0].transpose(1, 0, 2, 3)
-        chunk_zj = data[random.randrange(1, len(data))].transpose(1, 0, 2, 3)
+        fp = self.data_frame.at[idx, FILEPATH]
+        name = self.data_frame.at[idx, NAME]
+        scene = self.data_frame.at[idx, SCENE]
+        genre = self.data_frame.at[idx, GENRE]
+        t_data = self.data_frame.at[idx, T_DATA]
+        o_data = self.data_frame.at[idx, O_DATA]
+        random_n = random.randrange(0, len(t_data))
+
+        chunk_zi = t_data[random_n].transpose(1, 0, 2, 3)
+        del t_data[random_n]
+        chunk_zj = t_data[random.randrange(0, len(t_data))].transpose(1, 0, 2, 3)
+        chunk_zi = torch.FloatTensor(chunk_zi)
+        chunk_zj = torch.FloatTensor(chunk_zj)
+        o_1 = o_data[0].transpose(1, 0, 2, 3)
+        o_2 = o_data[1].transpose(1, 0, 2, 3)
+        o_1 = torch.FloatTensor(o_1)
+        o_2 = torch.FloatTensor(o_2)
+        t_pair = [chunk_zi, chunk_zj]
+        o_pair = [o_1, o_2]
         sample = {
-            "fp": fp,
-            "name": name,
-            "scene": scene,
-            "genre": genre,
-            "data": (chunk_zi, chunk_zj),
+            FILEPATH: fp,
+            NAME: name,
+            SCENE: scene,
+            GENRE: genre,
+            T_DATA: t_pair,
+            O_DATA: o_pair,
         }
         return sample
 
@@ -79,18 +109,21 @@ class ContrastiveDataSet(Dataset):
         return len(self.data_frame)
 
     def __getitem__(self, idx):
-        fp = self.data_frame.at[idx, "Fp"]
-        name = self.data_frame.at[idx, "Name"]
-        scene = self.data_frame.at[idx, "Scene"]
-        genre = self.data_frame.at[idx, "Genre"]
-        data = self.data_frame.at[idx, "Data"]
-        chunk_zi = data[0].transpose(1, 0, 2, 3)
-        chunk_zj = data[random.randrange(1, len(data))].transpose(1, 0, 2, 3)
+        fp = self.data_frame.at[idx, FILEPATH]
+        name = self.data_frame.at[idx, NAME]
+        scene = self.data_frame.at[idx, SCENE]
+        genre = self.data_frame.at[idx, GENRE]
+        t_data = self.data_frame.at[idx, T_DATA]
+        o_data = self.data_frame.at[idx, O_DATA]
+        o_data = o_data[random.randrange(0, len(o_data))].transpose(1, 0, 2, 3)
+        t_chunk_zi = t_data[random.randrange(0, len(data))].pop().transpose(1, 0, 2, 3)
+        t_chunk_zj = t_data[random.randrange(0, len(data))].transpose(1, 0, 2, 3)
         sample = {
-            "fp": fp,
-            "name": name,
-            "scene": scene,
-            "genre": genre,
-            "data": (chunk_zi, chunk_zj),
+            FILEPATH: fp,
+            NAME: name,
+            SCENE: scene,
+            GENRE: genre,
+            T_DATA: (t_chunk_zi, t_chunk_zj),
+            O_DATA: o_data,
         }
         return sample

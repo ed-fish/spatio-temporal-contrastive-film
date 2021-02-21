@@ -5,6 +5,10 @@ import numpy as np
 import pandas as pd
 import os
 import pickle as pkl
+from preprocessing.customdataloader import GENRE, NAME, SCENE, FILEPATH, O_DATA, T_DATA
+
+
+DEVICE = "cuda:0"
 
 
 class Identity(nn.Module):
@@ -27,24 +31,31 @@ class Model(nn.Module):
         config,
     ):
         if config.gpu:
-            device = torch.device("cuda:0")
+            device = torch.device(DEVICE)
             self.to(device)
 
         epoch = 0
         best_loss = 100.0
         best_epoch = 0
+        print("loading data")
         data_loader = torch.utils.data.DataLoader(
-            data_loader, config.batch_size, shuffle=True, num_workers=6, drop_last=True
+            data_loader,
+            config.batch_size,
+            shuffle=True,
+            num_workers=4,
+            drop_last=True,
         )
+        print("dataloaded")
+
         self.train()
         while epoch < config.epochs:
             total = 0
             running_loss = 0
             for bn, batch in enumerate(data_loader):
                 optimizer.zero_grad()
-                data = batch["data"]
-                zi = data[0].to(device)  # Augmented sample : 1 e (x ...xn) e v(i)
-                zj = data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
+                t_data = batch[T_DATA]
+                zi = t_data[0].to(device)  # Augmented sample : 1 e (x ...xn) e v(i)
+                zj = t_data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
                 zi_embedding = self.forward(zi)
                 zj_embedding = self.forward(zj)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
@@ -70,7 +81,7 @@ class Model(nn.Module):
 
         print(
             "Model completed training. Final loss = {}, Best loss = {}, Best Epoch = {}".format(
-                running_loss, best_loss, best_epoch
+                running_loss / total, best_loss / total, best_epoch
             )
         )
 
@@ -90,28 +101,33 @@ class Model(nn.Module):
         )
         self.load_state_dict(torch.load(model_features), strict=False)
         self.base_model.fc = Identity()
-        self.to(torch.device("cuda:0"))
+        self.to(torch.device(DEVICE))
         print(self)
         self.eval()
 
         output_df = []
         with torch.no_grad():
             for i in data_loader:
-                data = i["data"][0].to(torch.device("cuda:0"))
-                output = self(data.float())
+                o_data_1 = i[O_DATA][0].to(torch.device(DEVICE))
+                o_data_2 = i[O_DATA][1].to(torch.device(DEVICE))
+                output_1 = self(o_data_1.float())
+                output_2 = self(o_data_2.float())
+                output = torch.cat((output_1, output_2), dim=-1)
+                print(output.shape)
                 output = output.cpu()
+
                 if debug:
                     print("outputs shape from model", output.shape)
                 output = output.numpy().squeeze(0)
-                output_df.append([i["name"], i["fp"], i["scene"], output])
-        output_df = pd.DataFrame(output_df, columns=["name", "fp", "scene", "data"])
+                output_df.append([i[NAME], i[FILEPATH], i[SCENE], output])
+        output_df = pd.DataFrame(output_df, columns=[NAME, FILEPATH, SCENE, O_DATA])
         filepath = config.eval_directory + "/eval_output.pkl"
         output_df.to_pickle(filepath)
         print(output_df)
 
 
 class SpatioTemporalContrastiveModel(Model):
-    def __init__(self, input_layer_size, output_layer_size, pretrained=False):
+    def __init__(self, input_layer_size, output_layer_size, pretrained=True):
         super(SpatioTemporalContrastiveModel, self).__init__()
         if pretrained:
             self.base_model = models.video.r3d_18(pretrained=True)

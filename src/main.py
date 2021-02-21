@@ -62,15 +62,15 @@ class Config:
 
 # Setup logging object
 logging = Config(
-    learning_rate=0.09,
-    batch_size=32,
+    learning_rate=0.16,
+    batch_size=30,
     base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs",
     trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
     cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=500,
+    sample_size=1000,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
-    epochs=50,
+    epochs=300,
     mean=(0.43216, 0.394666, 0.37645),
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
@@ -81,11 +81,12 @@ def main(input_data, config, train=False):
 
     # load model with config
     spatio_model = SpatioTemporalContrastiveModel(
-        config.input_layer_size, config.output_layer_size
+        config.input_layer_size, config.output_layer_size, pretrained=True
     )
 
     # load dataset sample size = 2(n-1)
     data_set = DataLoader(input_data, config.sample_size)
+
     if train:
         loss = NT_Xent(
             config.batch_size, 0.5, 1
@@ -106,16 +107,18 @@ def main(input_data, config, train=False):
         vis = Visualisation(config)
         # Creates tensorboard t-sne plot in config.rundirectory
         vis.tsne()
+        vis.kmeans(200)
 
 
-def data_creation():
-    data_transformer = DataTransformer(logging)
+def data_creation(logger):
+    data_transformer = DataTransformer(logger)
     data_transformer.transform_data_from_cache()
 
 
 if __name__ == "__main__":
+
     main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/1000.pkl",
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
         logging,
-        True,
+        False,
     )
