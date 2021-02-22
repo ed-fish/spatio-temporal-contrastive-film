@@ -30,12 +30,20 @@ class Model(nn.Module):
         loss_alg,
         config,
     ):
+        self.train(True)
+        c = 0
+        for name, param in self.named_parameters():
+            if c <= config.n_frozen_layers:
+                param.requires_grad = False
+                print(c, name, param.requires_grad)
+                c += 1
+
         if config.gpu:
             device = torch.device(DEVICE)
             self.to(device)
 
         epoch = 0
-        best_loss = 100.0
+        best_loss = 200.0
         best_epoch = 0
         print("loading data")
         data_loader = torch.utils.data.DataLoader(
@@ -47,7 +55,6 @@ class Model(nn.Module):
         )
         print("dataloaded")
 
-        self.train()
         while epoch < config.epochs:
             total = 0
             running_loss = 0
@@ -76,6 +83,9 @@ class Model(nn.Module):
 
             print(f"Epoch {epoch} \n Loss : {running_loss/total}")
             config.writer.add_scalar("training loss", running_loss / total, epoch)
+            for name, weight in self.named_parameters():
+                config.writer.add_histogram(name, weight, epoch)
+
             config.writer.flush()
             epoch += 1
 
@@ -108,8 +118,8 @@ class Model(nn.Module):
         output_df = []
         with torch.no_grad():
             for i in data_loader:
-                o_data_1 = i[O_DATA][0].to(torch.device(DEVICE))
-                o_data_2 = i[O_DATA][1].to(torch.device(DEVICE))
+                o_data_1 = i[T_DATA][0].to(torch.device(DEVICE))
+                o_data_2 = i[T_DATA][1].to(torch.device(DEVICE))
                 output_1 = self(o_data_1.float())
                 output_2 = self(o_data_2.float())
                 output = torch.cat((output_1, output_2), dim=-1)

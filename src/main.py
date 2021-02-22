@@ -33,6 +33,7 @@ class Config:
         input_layer_size,
         output_layer_size,
         epochs,
+        n_frozen_layers,
         mean,
         std,
         gpu=True,
@@ -58,19 +59,36 @@ class Config:
         self.gpu = gpu
         self.mean = mean
         self.std = std
+        self.n_frozen_layers = n_frozen_layers
 
 
 # Setup logging object
-logging = Config(
+logging1 = Config(
     learning_rate=0.16,
     batch_size=30,
-    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs",
+    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/layers_14/",
     trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
     cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=1000,
+    sample_size=1400,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
-    epochs=300,
+    epochs=100,
+    n_frozen_layers=14,
+    mean=(0.43216, 0.394666, 0.37645),
+    std=(0.22803, 0.22145, 0.216989),
+    gpu=True,  # Currently no cpu support
+)
+logging2 = Config(
+    learning_rate=0.16,
+    batch_size=30,
+    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
+    trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
+    cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
+    sample_size=3000,
+    input_layer_size=512,  # Projection head 1 g0
+    output_layer_size=128,  # Projection head 2 h0
+    epochs=100,
+    n_frozen_layers=45,
     mean=(0.43216, 0.394666, 0.37645),
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
@@ -93,12 +111,16 @@ def main(input_data, config, train=False):
         )  # temperature and world size preset as per paper
         spatio_model.train_model(
             data_set,
-            torch.optim.Adam(spatio_model.parameters(), config.learning_rate),
+            torch.optim.Adam(
+                filter(lambda p: p.requires_grad, spatio_model.parameters()),
+                config.learning_rate,
+            ),
             loss,
             config,
         )
     else:
         weights = config.feature_directory + "/model.pt"
+        print(weights)
         spatio_model.eval_model(
             data_set,
             config,
@@ -117,8 +139,16 @@ def data_creation(logger):
 
 if __name__ == "__main__":
 
+    data_creation(logging2)
+
+    """main(
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
+        logging1,
+        True,
+    )
+
     main(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
-        logging,
-        False,
-    )
+        logging2,
+        True,
+    )"""

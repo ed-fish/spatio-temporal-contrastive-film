@@ -81,8 +81,6 @@ class Chunk:
         original_chunks = []
         permuted_chunks = []
         for i, im in enumerate(self.chunk_array):
-            print(self.permutate(im).shape)
-            print(self.transform(im).shape)
             permuted_chunks.append(self.permutate(im))
             original_chunks.append(self.transform(im))
             # plt.imshow(trans_im)
@@ -148,7 +146,6 @@ class DataTransformer:
                 )
 
                 p, o = chunk_obj.chunk_maker()  # returns a list of stacked images
-
                 list_of_permuted_imgs.append(p)
                 list_of_original_imgs.append(o)
 
@@ -160,8 +157,11 @@ class DataTransformer:
         print(data_frame)
         if n_samples == 0:
             n_samples = len(data_frame)
-        save_path = os.path.join(save_path, f"{str(n_samples)}.pkl")
-        pickle_file_path = open(save_path, "wb")
+        trans_path = os.path.join(save_path, f"{str(n_samples)}.pkl")
+        test_path = os.path.join(save_path, f"{str(n_samples)}_eval.pkl")
+        trans_pickle_file_path = open(trans_path, "wb")
+        test_pickle_file_path = open(test_path, "wb")
+
         counter = 0
         i = 0
         while counter < n_samples:
@@ -172,8 +172,12 @@ class DataTransformer:
             org_per_list = self.split_frames(fp, 3, 16)
             if org_per_list != 0:
                 pickle.dump(
-                    [genre, name, fp, scene, org_per_list[0], org_per_list[1]],
-                    pickle_file_path,
+                    [genre, name, fp, scene, org_per_list[1]],
+                    trans_pickle_file_path,
+                )
+                pickle.dump(
+                    [genre, name, fp, scene, org_per_list[0]],
+                    test_pickle_file_path,
                 )
                 print(f"data added db:{i}, sample{counter}")
                 counter += 1
@@ -182,7 +186,8 @@ class DataTransformer:
 
             i += 1
 
-        pickle_file_path.close()
+        trans_pickle_file_path.close()
+        test_pickle_file_path.close()
 
 
 # -> dataframe["filepath", "genre","scene", "original 16 x 3 x

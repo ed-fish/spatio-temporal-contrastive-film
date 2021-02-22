@@ -60,7 +60,7 @@ class DataLoader:
         pklfl.close()
         data_list = pd.DataFrame(
             data_list,
-            columns=[GENRE, NAME, FILEPATH, SCENE, O_DATA, T_DATA],
+            columns=[GENRE, NAME, FILEPATH, SCENE, T_DATA],
         )
 
         return data_list
@@ -74,7 +74,6 @@ class DataLoader:
         scene = self.data_frame.at[idx, SCENE]
         genre = self.data_frame.at[idx, GENRE]
         t_data = self.data_frame.at[idx, T_DATA]
-        o_data = self.data_frame.at[idx, O_DATA]
         random_n = random.randrange(0, len(t_data))
 
         chunk_zi = t_data[random_n].transpose(1, 0, 2, 3)
@@ -94,7 +93,6 @@ class DataLoader:
             SCENE: scene,
             GENRE: genre,
             T_DATA: t_pair,
-            O_DATA: o_pair,
         }
         return sample
 
@@ -114,8 +112,6 @@ class ContrastiveDataSet(Dataset):
         scene = self.data_frame.at[idx, SCENE]
         genre = self.data_frame.at[idx, GENRE]
         t_data = self.data_frame.at[idx, T_DATA]
-        o_data = self.data_frame.at[idx, O_DATA]
-        o_data = o_data[random.randrange(0, len(o_data))].transpose(1, 0, 2, 3)
         t_chunk_zi = t_data[random.randrange(0, len(data))].pop().transpose(1, 0, 2, 3)
         t_chunk_zj = t_data[random.randrange(0, len(data))].transpose(1, 0, 2, 3)
         sample = {
@@ -123,7 +119,6 @@ class ContrastiveDataSet(Dataset):
             NAME: name,
             SCENE: scene,
             GENRE: genre,
-            T_DATA: (t_chunk_zi, t_chunk_zj),
-            O_DATA: o_data,
+            T_DATA: [t_chunk_zi, t_chunk_zj],
         }
         return sample
