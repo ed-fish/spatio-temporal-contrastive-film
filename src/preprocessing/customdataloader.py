@@ -13,32 +13,6 @@ T_DATA = "Transformed_Data"
 O_DATA = "Original_Data"
 NAME = "Name"
 
-# For supervised training
-class TransVidDataset(Dataset):
-    def __init__(self, data_frame):
-        self.data_frame = data_frame
-
-    def __len__(self):
-        return len(self.data_frame)
-
-    def __getitem__(self, idx):
-        fp = self.data_frame.at[idx, FILEPATH]
-        name = self.data_frame.at[idx, NAME]
-        scene = self.data_frame.at[idx, SCENE]
-        genre = self.data_frame.at[idx, GENRE]
-        t_data = self.data_frame.at[idx, T_DATA]
-        o_data = self.data_frame.at[idx, O_DATA]
-        sample = {
-            FILEPATH: fp,
-            NAME: name,
-            SCENE: scene,
-            GENRE: genre,
-            T_DATA: t_data,
-            O_DATA: o_data,
-        }
-
-        return sample
-
 
 class DataLoader:
     def __init__(self, data_fp, sample_size, supervised=False):
@@ -76,49 +50,21 @@ class DataLoader:
         t_data = self.data_frame.at[idx, T_DATA]
         random_n = random.randrange(0, len(t_data))
 
-        chunk_zi = t_data[random_n].transpose(1, 0, 2, 3)
+        chunk_zi = t_data[random_n]
         del t_data[random_n]
-        chunk_zj = t_data[random.randrange(0, len(t_data))].transpose(1, 0, 2, 3)
+        chunk_zj = t_data[random.randrange(0, len(t_data))]
+        image_zi = chunk_zi[1]
+        image_zj = chunk_zj[0]
+        chunk_zi = chunk_zi.transpose(1, 0, 2, 3)
+        chunk_zj = chunk_zj.transpose(1, 0, 2, 3)
         chunk_zi = torch.FloatTensor(chunk_zi)
         chunk_zj = torch.FloatTensor(chunk_zj)
-        o_1 = o_data[0].transpose(1, 0, 2, 3)
-        o_2 = o_data[1].transpose(1, 0, 2, 3)
-        o_1 = torch.FloatTensor(o_1)
-        o_2 = torch.FloatTensor(o_2)
-        t_pair = [chunk_zi, chunk_zj]
-        o_pair = [o_1, o_2]
+        t_pair = [chunk_zi, chunk_zj, image_zi, image_zj]
         sample = {
             FILEPATH: fp,
             NAME: name,
             SCENE: scene,
             GENRE: genre,
             T_DATA: t_pair,
-        }
-        return sample
-
-
-# For unsupervised training
-class ContrastiveDataSet(Dataset):
-    def __init__(self, data_frame):
-        super(ContrastiveDataSet, self).__init__()
-        self.data_frame = data_frame
-
-    def __len__(self):
-        return len(self.data_frame)
-
-    def __getitem__(self, idx):
-        fp = self.data_frame.at[idx, FILEPATH]
-        name = self.data_frame.at[idx, NAME]
-        scene = self.data_frame.at[idx, SCENE]
-        genre = self.data_frame.at[idx, GENRE]
-        t_data = self.data_frame.at[idx, T_DATA]
-        t_chunk_zi = t_data[random.randrange(0, len(data))].pop().transpose(1, 0, 2, 3)
-        t_chunk_zj = t_data[random.randrange(0, len(data))].transpose(1, 0, 2, 3)
-        sample = {
-            FILEPATH: fp,
-            NAME: name,
-            SCENE: scene,
-            GENRE: genre,
-            T_DATA: [t_chunk_zi, t_chunk_zj],
         }
         return sample

@@ -2,10 +2,11 @@ import pickle as pkl
 import pandas as pd
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import torch
 from sklearn.cluster import KMeans
 import os
 import shutil
-from preprocessing.dataprocessing import FILEPATH, NAME, SCENE, O_DATA
+from preprocessing.dataprocessing import FILEPATH, NAME, SCENE, T_DATA, O_DATA
 
 
 class Visualisation:
@@ -13,16 +14,20 @@ class Visualisation:
         data_frame = pd.read_pickle(config.eval_directory + "/eval_output.pkl")
         self.writer = config.writer
         self.cluster_dir = os.path.join(config.eval_directory, "clusters")
-        self.data = data_frame[O_DATA].tolist()
+        self.data = data_frame[T_DATA].tolist()
         self.names = data_frame[NAME].tolist()
         self.file_paths = data_frame[FILEPATH].tolist()
         self.scenes = data_frame[SCENE].tolist()
+        self.images = data_frame["Image"].tolist()
 
     def tsne(self):
         data = np.stack(self.data)
+        images = torch.stack(self.images)
+        images = images.squeeze(1)
+        print("image shape!", images.shape)
         print(data.shape)
 
-        self.writer.add_embedding(data, self.names)
+        self.writer.add_embedding(data, label_img=images)
 
     def kmeans(self, clusters):
         """Completes KMEANS clustering and saves

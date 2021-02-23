@@ -18,10 +18,42 @@ class Identity(nn.Module):
         return x
 
 
-# See Tomcat, B. Twitch 2021
-class Model(nn.Module):
+class SpatioTemporalContrastiveModel(nn.Module):
     def __init__(self):
-        super(Model, self).__init__()
+        super(SpatioTemporalContrastiveModel, self).__init__()
+        self.input_layer_size = 512
+        self.output_layer_size = 128
+
+        self.video_model = models.video.r3d_18(pretrained=True)
+        self.image_model = models.resnet18(pretrained=True)
+
+        self.video_model.fc = nn.Sequential(
+            nn.Linear(512, self.input_layer_size),
+        )
+        self.image_model.fc = nn.Sequential(
+            nn.Linear(512, self.input_layer_size),
+        )
+
+        self.projection_head = nn.Sequential(
+            nn.Linear(self.input_layer_size * 2, self.input_layer_size),
+            nn.ReLU(inplace=True),
+            nn.Linear(self.input_layer_size, self.output_layer_size),
+        )
+
+    def print_model(self):
+        print("VIDEO MODEL")
+        print(self.video_model)
+        print("IMAGE MODEL")
+        print(self.image_model)
+
+    def forward_model(self, x, y, train=True):
+        output_video = self.video_model(x)
+
+        output_image = self.image_model(y)
+        output = torch.cat((output_video, output_image), -1)
+        if train:
+            output = self.projection_head(output)
+        return output
 
     def train_model(
         self,
@@ -30,20 +62,30 @@ class Model(nn.Module):
         loss_alg,
         config,
     ):
-        self.train(True)
-        c = 0
-        for name, param in self.named_parameters():
-            if c <= config.n_frozen_layers:
-                param.requires_grad = False
-                print(c, name, param.requires_grad)
-                c += 1
+        print("training")
+        self.video_model.train(True)
+        self.image_model.train(True)
+        if config.n_frozen_layers != 0:
+            c = 0
+            for name, param in self.video_model.named_parameters():
+                if c <= config.n_frozen_layers:
+                    param.requires_grad = False
+                    print(c, name, param.requires_grad)
+                    c += 1
+            for name, param in self.video_model.named_parameters():
+                if c <= config.n_frozen_layers:
+                    param.requires_grad = False
+                    print(c, name, param.requires_grad)
+                    c += 1
 
         if config.gpu:
             device = torch.device(DEVICE)
-            self.to(device)
+            self.video_model.to(device)
+            self.image_model.to(device)
+            self.projection_head.to(device)
 
         epoch = 0
-        best_loss = 200.0
+        best_loss = 2000.0
         best_epoch = 0
         print("loading data")
         data_loader = torch.utils.data.DataLoader(
@@ -61,10 +103,17 @@ class Model(nn.Module):
             for bn, batch in enumerate(data_loader):
                 optimizer.zero_grad()
                 t_data = batch[T_DATA]
-                zi = t_data[0].to(device)  # Augmented sample : 1 e (x ...xn) e v(i)
-                zj = t_data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
-                zi_embedding = self.forward(zi)
-                zj_embedding = self.forward(zj)
+                zi_v = t_data[0].to(device)  # Augmented sample : 1 e (x ...xn) e v(i)
+                zj_v = t_data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
+                zi_i = t_data[2].to(device)
+                zj_i = t_data[3].to(device)
+                """setup for multiple models
+
+                zi embedding = self.forward(-> embedding concat from both resnet and image model)
+
+                """
+                zi_embedding = self.forward_model(zi_v, zi_i)
+                zj_embedding = self.forward_model(zj_v, zj_i)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
                 running_loss += loss.item()
                 total += config.batch_size
@@ -109,58 +158,43 @@ class Model(nn.Module):
             num_workers=6,
             drop_last=True,
         )
-        self.load_state_dict(torch.load(model_features), strict=False)
-        self.base_model.fc = Identity()
-        self.to(torch.device(DEVICE))
-        print(self)
-        self.eval()
+        # self.load_state_dict(torch.load(model_features), strict=False)
+        self.video_model.fc = Identity()
+        self.image_model.fc = Identity()
+        self.video_model.to(torch.device(DEVICE))
+        self.image_model.to(torch.device(DEVICE))
+
+        self.video_model.eval()
+        self.image_model.eval()
 
         output_df = []
         with torch.no_grad():
             for i in data_loader:
-                o_data_1 = i[T_DATA][0].to(torch.device(DEVICE))
-                o_data_2 = i[T_DATA][1].to(torch.device(DEVICE))
-                output_1 = self(o_data_1.float())
-                output_2 = self(o_data_2.float())
-                output = torch.cat((output_1, output_2), dim=-1)
-                print(output.shape)
-                output = output.cpu()
+                v_data1 = i[T_DATA][0].to(torch.device(DEVICE))
+                i_data1 = i[T_DATA][2].to(torch.device(DEVICE))
+                v_data2 = i[T_DATA][1].to(torch.device(DEVICE))
+                i_data2 = i[T_DATA][3].to(torch.device(DEVICE))
+                output1 = self.forward_model(v_data1, i_data1, train=False)
+                output2 = self.forward_model(v_data2, i_data2, train=False)
+                output1 = output1.cpu()
+                output2 = output2.cpu()
 
                 if debug:
                     print("outputs shape from model", output.shape)
-                output = output.numpy().squeeze(0)
-                output_df.append([i[NAME], i[FILEPATH], i[SCENE], output])
-        output_df = pd.DataFrame(output_df, columns=[NAME, FILEPATH, SCENE, O_DATA])
+                output1 = output1.numpy().squeeze(0)
+                output2 = output2.numpy().squeeze(0)
+                output_df.append(
+                    [i[NAME], i[FILEPATH], i[SCENE], output1, i[T_DATA][2].cpu()]
+                )
+                output_df.append(
+                    [i[NAME], i[FILEPATH], i[SCENE], output2, i[T_DATA][2].cpu()]
+                )
+        output_df = pd.DataFrame(
+            output_df, columns=[NAME, FILEPATH, SCENE, T_DATA, "Image"]
+        )
         filepath = config.eval_directory + "/eval_output.pkl"
         output_df.to_pickle(filepath)
         print(output_df)
-
-
-class SpatioTemporalContrastiveModel(Model):
-    def __init__(self, input_layer_size, output_layer_size, pretrained=True):
-        super(SpatioTemporalContrastiveModel, self).__init__()
-        if pretrained:
-            self.base_model = models.video.r3d_18(pretrained=True)
-        else:
-            self.base_model = models.video.r3d_18(pretrained=False)
-
-        self.base_model.fc = nn.Sequential(
-            nn.Linear(512, input_layer_size),
-            nn.ReLU(inplace=True),
-            nn.Linear(input_layer_size, output_layer_size),
-        )
-
-        self.create_model()
-
-    def create_model(self):
-        return self.base_model
-
-    def print_model(self):
-        print(self.base_model)
-
-    def forward(self, x):
-        output = self.base_model(x)
-        return output
 
 
 class NT_Xent(nn.Module):

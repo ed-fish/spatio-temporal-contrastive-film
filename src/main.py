@@ -6,7 +6,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Pytorch
 import torch
-
+import torch.multiprocessing
 # Custom
 from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
 from preprocessing.customdataloader import (
@@ -18,7 +18,7 @@ from preprocessing.dataprocessing import DataTransformer
 """ An implementation of Spatio-Temporal Constrastive Networks for Video
     https://arxiv.org/pdf/2008.03800.pdf"""
 
-
+torch.multiprocessing.set_sharing_strategy('file_system')
 class Config:
     """ Loads a configuration for the model"""
 
@@ -39,7 +39,7 @@ class Config:
         gpu=True,
     ):
         run_directory = os.path.join(
-            base_directory, str(sample_size), str(learning_rate)
+            base_directory, str(sample_size), str(learning_rate), str(n_frozen_layers)
         )
         self.feature_directory = os.path.join(run_directory, "features")
         self.eval_directory = os.path.join(run_directory, "eval")
@@ -64,31 +64,31 @@ class Config:
 
 # Setup logging object
 logging1 = Config(
-    learning_rate=0.16,
+    learning_rate=0.05,
     batch_size=30,
-    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/layers_14/",
+    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
     trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
     cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=1400,
+    sample_size=2300,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
-    epochs=100,
-    n_frozen_layers=14,
+    epochs=250,
+    n_frozen_layers=42,
     mean=(0.43216, 0.394666, 0.37645),
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
 )
 logging2 = Config(
-    learning_rate=0.16,
+    learning_rate=0.05,
     batch_size=30,
     base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
     trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
     cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=3000,
+    sample_size=2300,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
-    epochs=100,
-    n_frozen_layers=45,
+    epochs=250,
+    n_frozen_layers=0,
     mean=(0.43216, 0.394666, 0.37645),
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
@@ -98,9 +98,7 @@ logging2 = Config(
 def main(input_data, config, train=False):
 
     # load model with config
-    spatio_model = SpatioTemporalContrastiveModel(
-        config.input_layer_size, config.output_layer_size, pretrained=True
-    )
+    spatio_model = SpatioTemporalContrastiveModel()
 
     # load dataset sample size = 2(n-1)
     data_set = DataLoader(input_data, config.sample_size)
@@ -132,23 +130,22 @@ def main(input_data, config, train=False):
         vis.kmeans(200)
 
 
-def data_creation(logger):
-    data_transformer = DataTransformer(logger)
+def data_creation(logger, train_data=True):
+    data_transformer = DataTransformer(logger, train_data=train_data)
     data_transformer.transform_data_from_cache()
 
 
 if __name__ == "__main__":
-
-    data_creation(logging2)
-
-    """main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
-        logging1,
-        True,
-    )
+    # data_creation(logging2, train_data=True)
 
     main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/2500_eval.pkl",
         logging2,
+        False,
+    )
+
+    """ main(
+        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/3000_train.pkl",
+        logging1,
         True,
     )"""

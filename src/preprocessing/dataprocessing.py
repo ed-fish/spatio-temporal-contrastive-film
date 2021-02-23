@@ -5,7 +5,7 @@ import random
 import numpy as np
 import os
 from torchvision import transforms
-from preprocessing.customdataloader import GENRE, NAME, FILEPATH, SCENE, T_DATA, O_DATA
+from preprocessing.customdataloader import GENRE, NAME, FILEPATH, SCENE, O_DATA, T_DATA
 import pickle
 import matplotlib.pyplot as plt
 
@@ -16,7 +16,7 @@ class Chunk:
     Returns: 1 X 16 X 3 (BGR)
     """
 
-    def __init__(self, chunk_array, filepath, mean, std, norm):
+    def __init__(self, chunk_array, filepath, mean, std, train_data, norm):
         self.chunk_array = chunk_array
         self.width = chunk_array[0].shape[1]
         self.height = chunk_array[0].shape[0]
@@ -25,20 +25,21 @@ class Chunk:
         self.std = std
         self._init_params()
         self.norm = norm
+        self.train_data = train_data
 
     def _init_params(self):
         """Define random transforms for whole chunk of clips (16 frames)
         Use random seed to ensure all chunks have same transform (temporally consistent)"""
         random.seed(self.gen_hash(self.filepath))
-        self.crop_size = random.randrange(10, int(self.height - 20))
+        self.crop_size = random.randrange(100, int(self.height - 20))
         self.x = random.randrange(10, self.width - self.crop_size + 10)
         self.y = random.randrange(10, self.height - self.crop_size + 10)
         self.flip_val = random.randrange(-1, 2)
-        self.random_noise = random.randint(20, 200)
+        self.random_noise = random.randint(1, 10)
         self.random_gray = False
         self.random_blur = False
         # self.noise = np.random.uniform(0, 255,(self.crop_size, self.crop_size))
-        if random.random() < 0.20:
+        if random.random() < 0.50:
             self.random_gray = True
         if random.random() < 0.80:
             self.random_blur = True
@@ -78,17 +79,18 @@ class Chunk:
 
     def chunk_maker(self):
         # todo Convert to tensor
-        original_chunks = []
+
         permuted_chunks = []
         for i, im in enumerate(self.chunk_array):
-            permuted_chunks.append(self.permutate(im))
-            original_chunks.append(self.transform(im))
+            if self.train_data:
+                permuted_chunks.append(self.permutate(im))
+            else:
+                permuted_chunks.append(self.transform(im))
             # plt.imshow(trans_im)
             # plt.savefig("/home/ed/PhD/Temporal-3DCNN-pytorch/src/tests/0.png")
 
         permuted_stack = np.stack(permuted_chunks)
-        original_stack = np.stack(original_chunks)
-        return permuted_stack, original_stack
+        return permuted_stack
 
     def gen_hash(self, tbh):
         hash_object = hashlib.md5(tbh.encode())
@@ -96,9 +98,10 @@ class Chunk:
 
 
 class DataTransformer:
-    def __init__(self, config, debug=False):
+    def __init__(self, config, train_data=True, debug=False):
         self.config = config
         self.cache_file = self.config.cache_file
+        self.train_data = train_data
 
     def transform_data_from_cache(self):
         data_frame = pd.read_csv(self.cache_file, delimiter="/")
@@ -116,7 +119,6 @@ class DataTransformer:
         frame_list = []
         clip_list = []
         list_of_permuted_imgs = []
-        list_of_original_imgs = []
 
         vidcap = cv2.VideoCapture(file_path)
         success, image = vidcap.read()
@@ -142,14 +144,14 @@ class DataTransformer:
                     file_path + str(i),
                     self.config.mean,
                     self.config.std,
+                    self.train_data,
                     norm=True,
                 )
 
-                p, o = chunk_obj.chunk_maker()  # returns a list of stacked images
+                p = chunk_obj.chunk_maker()  # returns a list of stacked images
                 list_of_permuted_imgs.append(p)
-                list_of_original_imgs.append(o)
 
-            return [list_of_original_imgs, list_of_permuted_imgs]
+            return list_of_permuted_imgs
         else:
             return 0
 
@@ -157,10 +159,11 @@ class DataTransformer:
         print(data_frame)
         if n_samples == 0:
             n_samples = len(data_frame)
-        trans_path = os.path.join(save_path, f"{str(n_samples)}.pkl")
-        test_path = os.path.join(save_path, f"{str(n_samples)}_eval.pkl")
+        if self.train_data:
+            trans_path = os.path.join(save_path, f"{str(n_samples)}_train.pkl")
+        else:
+            trans_path = os.path.join(save_path, f"{str(n_samples)}_eval.pkl")
         trans_pickle_file_path = open(trans_path, "wb")
-        test_pickle_file_path = open(test_path, "wb")
 
         counter = 0
         i = 0
@@ -169,25 +172,18 @@ class DataTransformer:
             name = data_frame.at[i, NAME]
             scene = data_frame.at[i, SCENE]
             genre = data_frame.at[i, GENRE]
-            org_per_list = self.split_frames(fp, 3, 16)
-            if org_per_list != 0:
+            list_of_transposed_stacks = self.split_frames(fp, 3, 16)
+            if list_of_transposed_stacks != 0:
                 pickle.dump(
-                    [genre, name, fp, scene, org_per_list[1]],
+                    [genre, name, fp, scene, list_of_transposed_stacks],
                     trans_pickle_file_path,
-                )
-                pickle.dump(
-                    [genre, name, fp, scene, org_per_list[0]],
-                    test_pickle_file_path,
                 )
                 print(f"data added db:{i}, sample{counter}")
                 counter += 1
-            else:
-                print("error loading sample")
 
             i += 1
 
         trans_pickle_file_path.close()
-        test_pickle_file_path.close()
 
 
 # -> dataframe["filepath", "genre","scene", "original 16 x 3 x
