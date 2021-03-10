@@ -1,5 +1,6 @@
 # Sys
 import os
+import csv
 
 # Viz
 from torch.utils.tensorboard import SummaryWriter
@@ -7,6 +8,7 @@ from torch.utils.tensorboard import SummaryWriter
 # Pytorch
 import torch
 import torch.multiprocessing
+
 # Custom
 from models.contrastivemodel import SpatioTemporalContrastiveModel, NT_Xent
 from preprocessing.customdataloader import (
@@ -18,7 +20,9 @@ from preprocessing.dataprocessing import DataTransformer
 """ An implementation of Spatio-Temporal Constrastive Networks for Video
     https://arxiv.org/pdf/2008.03800.pdf"""
 
-torch.multiprocessing.set_sharing_strategy('file_system')
+torch.multiprocessing.set_sharing_strategy("file_system")
+
+
 class Config:
     """ Loads a configuration for the model"""
 
@@ -78,21 +82,6 @@ logging1 = Config(
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
 )
-logging2 = Config(
-    learning_rate=0.05,
-    batch_size=30,
-    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
-    trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
-    cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=2300,
-    input_layer_size=512,  # Projection head 1 g0
-    output_layer_size=128,  # Projection head 2 h0
-    epochs=250,
-    n_frozen_layers=0,
-    mean=(0.43216, 0.394666, 0.37645),
-    std=(0.22803, 0.22145, 0.216989),
-    gpu=True,  # Currently no cpu support
-)
 
 
 def main(input_data, config, train=False):
@@ -126,8 +115,9 @@ def main(input_data, config, train=False):
         )
         vis = Visualisation(config)
         # Creates tensorboard t-sne plot in config.rundirectory
-        vis.tsne()
-        vis.kmeans(200)
+        # vis.tsne()
+        # vis.kmeans(200)
+        vis.plt()
 
 
 def data_creation(logger, train_data=True):
@@ -140,12 +130,6 @@ if __name__ == "__main__":
 
     main(
         "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/2500_eval.pkl",
-        logging2,
+        logging1,
         False,
     )
-
-    """ main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/3000_train.pkl",
-        logging1,
-        True,
-    )"""

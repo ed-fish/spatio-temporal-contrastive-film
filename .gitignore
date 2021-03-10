@@ -1,3 +1,4 @@
+.envrc
 /features
 /logs
 /data
@@ -5,3 +6,4 @@
 /tests
 /src/data.pkl
 .vscode
+todo.txt

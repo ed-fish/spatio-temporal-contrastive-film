@@ -24,7 +24,7 @@ def load_pkl(data_fp, sample_size):
     return data_list
 
 
-df = load_pkl("testing.pkl", 10)
+"""df = load_pkl("testing.pkl", 10)
 clip_one = df["Data"][8][2]
 clip_two = df["Data"][0][1]
 clip = np.concatenate(clip_one)
@@ -33,4 +33,19 @@ for i in range(2):
     vc = clip_one[i].transpose(2, 1, 0)
     print(vc)
     img = Image.fromarray(vc, "RGB")
-    img.save(f"test{i}.png")
+    img.save(f"test{i}.png")"""
+
+
+def save_meta(name, genres, year, csv_fl):
+    g = " | ".join(genres)
+    filename = name + ".jpg"
+    meta_line = [filename, g, name, year]
+    with open(csv_fl, "a") as fd:
+        f_writer = csv.writer(fd)
+        f_writer.writerow(meta_line)
+
+
+genres = [["g1", "g2", "g3"], ["g4", "g5", "g6"]]
+
+new_list = list(map(lambda g: " | ".join(g), genres))
+print(new_list[0])

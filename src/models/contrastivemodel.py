@@ -180,17 +180,31 @@ class SpatioTemporalContrastiveModel(nn.Module):
                 output2 = output2.cpu()
 
                 if debug:
-                    print("outputs shape from model", output.shape)
+                    print("outputs shape from model", output1.shape)
                 output1 = output1.numpy().squeeze(0)
                 output2 = output2.numpy().squeeze(0)
                 output_df.append(
-                    [i[NAME], i[FILEPATH], i[SCENE], output1, i[T_DATA][2].cpu()]
+                    [
+                        i[NAME],
+                        i[FILEPATH],
+                        i[SCENE],
+                        i[GENRE],
+                        output1,
+                        i[T_DATA][2].cpu(),
+                    ]
                 )
                 output_df.append(
-                    [i[NAME], i[FILEPATH], i[SCENE], output2, i[T_DATA][2].cpu()]
+                    [
+                        i[NAME],
+                        i[FILEPATH],
+                        i[SCENE],
+                        i[GENRE],
+                        output2,
+                        i[T_DATA][2].cpu(),
+                    ]
                 )
         output_df = pd.DataFrame(
-            output_df, columns=[NAME, FILEPATH, SCENE, T_DATA, "Image"]
+            output_df, columns=[NAME, FILEPATH, SCENE, GENRE, T_DATA, "Image"]
         )
         filepath = config.eval_directory + "/eval_output.pkl"
         output_df.to_pickle(filepath)
@@ -225,8 +239,6 @@ class NT_Xent(nn.Module):
         N = 2 * self.batch_size * self.world_size
 
         z = torch.cat((z_i, z_j), dim=0)
-        if self.world_size > 1:
-            z = torch.cat(GatherLayer.apply(z), dim=0)
 
         sim = self.similarity_f(z.unsqueeze(1), z.unsqueeze(0)) / self.temperature
 
