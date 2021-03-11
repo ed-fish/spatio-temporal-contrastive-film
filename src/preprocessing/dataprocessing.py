@@ -38,8 +38,7 @@ class Chunk:
         self.random_noise = random.randint(1, 10)
         self.random_gray = False
         self.random_blur = False
-        # self.noise = np.random.uniform(0, 255,(self.crop_size, self.crop_size))
-        if random.random() < 0.50:
+        if random.random() < 0.60:
             self.random_gray = True
         if random.random() < 0.80:
             self.random_blur = True
@@ -71,14 +70,12 @@ class Chunk:
 
         tensorfy = transforms.ToTensor()
         img = tensorfy(img)
-        # img = img.permute(2, 0, 1)
         if self.norm:
             norm = transforms.Normalize(self.mean, self.std)
             img = norm(img)
         return img
 
     def chunk_maker(self):
-        # todo Convert to tensor
 
         permuted_chunks = []
         for i, im in enumerate(self.chunk_array):
@@ -127,14 +124,15 @@ class DataTransformer:
         while success:
             success, image = vidcap.read()
             if success:
-                if count % 2:
-                    frame_list.append(image)
-                if len(frame_list) == n_frames:
-                    clip_list.append(frame_list)
-                    if debug:
-                        print("added chunk of length", len(frame_list))
-                        print("added to clip_list", len(clip_list))
-                    frame_list = []
+                if count > 2:
+                    if count % 2:
+                        frame_list.append(image)
+                    if len(frame_list) == n_frames:
+                        clip_list.append(frame_list)
+                        if debug:
+                            print("added chunk of length", len(frame_list))
+                            print("added to clip_list", len(clip_list))
+                        frame_list = []
                 count += 1
 
         if len(clip_list) >= min_clip_len:
@@ -184,10 +182,3 @@ class DataTransformer:
             i += 1
 
         trans_pickle_file_path.close()
-
-
-# -> dataframe["filepath", "genre","scene", "original 16 x 3 x
-#  112 x 112", ["transform1", "transform2", "transformn"]]
-# -> transfrom 1 vs transform 2
-# -> transform 3 vs transform 1
-# crop size relative to original

@@ -22,6 +22,18 @@ class Visualisation:
         self.images = self.data_frame["Image"].tolist()
         self.genre = self.data_frame[GENRE].tolist()
         self.config = config
+        self.reverse_norm()
+
+    def inverse_norm(self, tensor, mean, std):
+        for t, m, s in zip(tensor, mean, std):
+            t.mul_(s).add_(m)
+
+        return tensor
+
+    def reverse_norm(self):
+        for x, i in enumerate(self.images):
+            t = self.inverse_norm(i, self.config.mean, self.config.std)
+            self.images[x] = t
 
     def tsne(self):
         data = np.stack(self.data)

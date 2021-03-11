@@ -69,11 +69,11 @@ class Config:
 # Setup logging object
 logging1 = Config(
     learning_rate=0.05,
-    batch_size=30,
+    batch_size=1,
     base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
     trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
     cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=2300,
+    sample_size=2000,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
     epochs=250,

@@ -107,11 +107,7 @@ class SpatioTemporalContrastiveModel(nn.Module):
                 zj_v = t_data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
                 zi_i = t_data[2].to(device)
                 zj_i = t_data[3].to(device)
-                """setup for multiple models
-
-                zi embedding = self.forward(-> embedding concat from both resnet and image model)
-
-                """
+              
                 zi_embedding = self.forward_model(zi_v, zi_i)
                 zj_embedding = self.forward_model(zj_v, zj_i)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
@@ -172,17 +168,13 @@ class SpatioTemporalContrastiveModel(nn.Module):
             for i in data_loader:
                 v_data1 = i[T_DATA][0].to(torch.device(DEVICE))
                 i_data1 = i[T_DATA][2].to(torch.device(DEVICE))
-                v_data2 = i[T_DATA][1].to(torch.device(DEVICE))
-                i_data2 = i[T_DATA][3].to(torch.device(DEVICE))
+
                 output1 = self.forward_model(v_data1, i_data1, train=False)
-                output2 = self.forward_model(v_data2, i_data2, train=False)
                 output1 = output1.cpu()
-                output2 = output2.cpu()
 
                 if debug:
                     print("outputs shape from model", output1.shape)
                 output1 = output1.numpy().squeeze(0)
-                output2 = output2.numpy().squeeze(0)
                 output_df.append(
                     [
                         i[NAME],
@@ -193,16 +185,7 @@ class SpatioTemporalContrastiveModel(nn.Module):
                         i[T_DATA][2].cpu(),
                     ]
                 )
-                output_df.append(
-                    [
-                        i[NAME],
-                        i[FILEPATH],
-                        i[SCENE],
-                        i[GENRE],
-                        output2,
-                        i[T_DATA][2].cpu(),
-                    ]
-                )
+
         output_df = pd.DataFrame(
             output_df, columns=[NAME, FILEPATH, SCENE, GENRE, T_DATA, "Image"]
         )
