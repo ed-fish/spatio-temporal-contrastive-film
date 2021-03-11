@@ -13,7 +13,7 @@ To use this function pass a dataframe with the columns `Filepath, Name, Scene, G
 An example config is given in `main.py`. Pass the config to main to train the model. 
 
 ### Evaluation
-Simply run the code with `Train=False` 
+Run the code with `Train=False` 
 The model will post all the data via a `SummaryWriter` to a directory specified in the config object. This will also contain a Tensorboard T-SNE Plot - for kmeans use the `kmeans = True` flag.
 
 If setup etc is too complicated rn check back in a couple of weeks as this repo is being updated daily.
