@@ -9,6 +9,7 @@ from preprocessing.customdataloader import GENRE, NAME, SCENE, FILEPATH, O_DATA,
 
 
 DEVICE = "cuda:0"
+LOCATION_PATH = "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/expert_pths/resnet18_places365.pth.tar"
 
 
 class Identity(nn.Module):
@@ -26,31 +27,36 @@ class SpatioTemporalContrastiveModel(nn.Module):
 
         self.video_model = models.video.r3d_18(pretrained=True)
         self.image_model = models.resnet18(pretrained=True)
+        self.location_model = models.resnet18(pretrained=False)
+        self.location_model.fc = nn.Sequential(nn.Linear(512, self.input_layer_size))
 
-        self.video_model.fc = nn.Sequential(
-            nn.Linear(512, self.input_layer_size),
-        )
-        self.image_model.fc = nn.Sequential(
-            nn.Linear(512, self.input_layer_size),
-        )
+        self.video_model.fc = nn.Sequential(nn.Linear(512, self.input_layer_size))
+        self.image_model.fc = nn.Sequential(nn.Linear(512, self.input_layer_size))
 
         self.projection_head = nn.Sequential(
-            nn.Linear(self.input_layer_size * 2, self.input_layer_size),
+            nn.Linear(
+                self.input_layer_size * 3, self.input_layer_size
+            ),  # todo variable number of models
             nn.ReLU(inplace=True),
             nn.Linear(self.input_layer_size, self.output_layer_size),
         )
+        self.print_model()
 
     def print_model(self):
         print("VIDEO MODEL")
         print(self.video_model)
         print("IMAGE MODEL")
         print(self.image_model)
+        print("LOCATION MODEL")
+        print(self.location_model)
 
-    def forward_model(self, x, y, train=True):
-        output_video = self.video_model(x)
-
-        output_image = self.image_model(y)
-        output = torch.cat((output_video, output_image), -1)
+    def forward_model(self, vid, img, train=True):
+        output_video = self.video_model(vid)
+        output_image = self.image_model(
+            img
+        )  # todo discuss temporal info within clip chunk
+        output_location = self.location_model(img)
+        output = torch.cat((output_video, output_image, output_location), -1)
         if train:
             output = self.projection_head(output)
         return output
@@ -63,26 +69,52 @@ class SpatioTemporalContrastiveModel(nn.Module):
         config,
     ):
         print("training")
-        self.video_model.train(True)
-        self.image_model.train(True)
+        if "motion" in config.models:
+            self.video_model.train(True)
+        if "image" in config.models:
+            self.image_model.train(True)
+        if "location" in config.models:
+                
+                location_checkpoint = torch.load(
+                    LOCATION_PATH, map_location=lambda storage, loc: storage
+            )
+            state_dict = {
+                str.replace(k, "module.", ""): v
+                for k, v in location_checkpoint["state_dict"].items()
+            }
+            model_dict = self.location_model.state_dict()
+            state_dict = {k: v for k, v in state_dict.items() if k in model_dict}
+            model_dict.update(state_dict)
+            self.location_model.load_state_dict(state_dict, strict=False)
+            self.location_model.train(True)
+    
         if config.n_frozen_layers != 0:
             c = 0
-            for name, param in self.video_model.named_parameters():
-                if c <= config.n_frozen_layers:
-                    param.requires_grad = False
-                    print(c, name, param.requires_grad)
-                    c += 1
-            for name, param in self.video_model.named_parameters():
-                if c <= config.n_frozen_layers:
-                    param.requires_grad = False
-                    print(c, name, param.requires_grad)
-                    c += 1
+            if "image" in config.models:
+                for name, param in self.image_model.named_parameters():
+                    if c <= config.n_frozen_layers:
+                        param.requires_grad = False
+                        print(c, name, param.requires_grad)
+                        c += 1
+                self.video_model.to(device)
 
-        if config.gpu:
-            device = torch.device(DEVICE)
-            self.video_model.to(device)
-            self.image_model.to(device)
-            self.projection_head.to(device)
+            if "motion" in config.models:
+                for name, param in self.video_model.named_parameters():
+                    if c <= config.n_frozen_layers:
+                        param.requires_grad = False
+                        print(c, name, param.requires_grad)
+                        c += 1
+                self.video_model.to(device)
+
+            if "location" in config.models:
+                for name, param in self.location_model.named_parameters():
+                    if c <= config.n_frozen_layers:
+                        param.requires_grad = False
+                        print(c, name, param.requires_grad)
+                        c += 1
+                self.location_model.to(device)
+
+        self.projection_head.to(device)
 
         epoch = 0
         best_loss = 2000.0
@@ -107,7 +139,7 @@ class SpatioTemporalContrastiveModel(nn.Module):
                 zj_v = t_data[1].to(device)  # Augmented sample : 2 e (x ...xn) e v(i)
                 zi_i = t_data[2].to(device)
                 zj_i = t_data[3].to(device)
-              
+
                 zi_embedding = self.forward_model(zi_v, zi_i)
                 zj_embedding = self.forward_model(zj_v, zj_i)
                 loss = loss_alg.forward(zi_embedding, zj_embedding)
@@ -115,8 +147,10 @@ class SpatioTemporalContrastiveModel(nn.Module):
                 total += config.batch_size
                 loss.backward()
                 optimizer.step()
+
                 if bn % 5 == 0:
                     print("batch n", bn, loss)
+
             print(f"running loss {running_loss}, best_loss{best_loss}")
             if running_loss < best_loss:
                 print("model should save")
@@ -154,14 +188,18 @@ class SpatioTemporalContrastiveModel(nn.Module):
             num_workers=6,
             drop_last=True,
         )
-        # self.load_state_dict(torch.load(model_features), strict=False)
+
+        self.load_state_dict(torch.load(model_features), strict=False)
         self.video_model.fc = Identity()
         self.image_model.fc = Identity()
+        self.location_model.fc = Identity()
         self.video_model.to(torch.device(DEVICE))
         self.image_model.to(torch.device(DEVICE))
+        self.location_model.to(torch.device(DEVICE))
 
         self.video_model.eval()
         self.image_model.eval()
+        self.location_model.eval()
 
         output_df = []
         with torch.no_grad():

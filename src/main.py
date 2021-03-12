@@ -41,6 +41,7 @@ class Config:
         mean,
         std,
         gpu=True,
+        models
     ):
         run_directory = os.path.join(
             base_directory, str(sample_size), str(learning_rate), str(n_frozen_layers)
@@ -64,6 +65,7 @@ class Config:
         self.mean = mean
         self.std = std
         self.n_frozen_layers = n_frozen_layers
+        self.models = models
 
 
 # Setup logging object
@@ -78,9 +80,10 @@ logging1 = Config(
     output_layer_size=128,  # Projection head 2 h0
     epochs=250,
     n_frozen_layers=42,
-    mean=(0.43216, 0.394666, 0.37645),
+    mean=(0.43216, 0.394666, 0.37645),  # todo different means and std for diff models
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
+    models = [image, motion, location]
 )
 
 
