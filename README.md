@@ -1,4 +1,4 @@
-## Spatio Temporal Contrastive Film: Pytorch (wip)
+## Spatio Temporal Contrastive Film: Pytorch (work in progress)
 A Pytorch implementation of Spatio Temporal Contrastive Video Representation Learning which has been adapted for film trailer analysis. 
 This repo is designed for unsupervised analysis of clips extracted from movie trailers. 
 
