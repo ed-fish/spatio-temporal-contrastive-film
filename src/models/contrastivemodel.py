@@ -17,8 +17,7 @@ class Identity(nn.Module):
     def forward(self, x):
         return x
 
-
-# See Tomcat, B. Twitch 2021
+    
 class Model(nn.Module):
     def __init__(self):
         super(Model, self).__init__()
