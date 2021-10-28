@@ -62,13 +62,13 @@ class Config:
         self.n_frozen_layers = n_frozen_layers
 
 
-# Setup logging object
-logging1 = Config(
+# Setup configuration
+config = Config(
     learning_rate=0.16,
     batch_size=30,
-    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/layers_14/",
-    trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
-    cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
+    base_directory="",
+    trans_data_dir="",
+    cache_file="",
     sample_size=1400,
     input_layer_size=512,  # Projection head 1 g0
     output_layer_size=128,  # Projection head 2 h0
@@ -78,21 +78,7 @@ logging1 = Config(
     std=(0.22803, 0.22145, 0.216989),
     gpu=True,  # Currently no cpu support
 )
-logging2 = Config(
-    learning_rate=0.16,
-    batch_size=30,
-    base_directory="/home/ed/PhD/Temporal-3DCNN-pytorch/logs/",
-    trans_data_dir="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed",
-    cache_file="/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/original/cache-file-paths.txt",
-    sample_size=3000,
-    input_layer_size=512,  # Projection head 1 g0
-    output_layer_size=128,  # Projection head 2 h0
-    epochs=100,
-    n_frozen_layers=45,
-    mean=(0.43216, 0.394666, 0.37645),
-    std=(0.22803, 0.22145, 0.216989),
-    gpu=True,  # Currently no cpu support
-)
+
 
 
 def main(input_data, config, train=False):
@@ -132,23 +118,19 @@ def main(input_data, config, train=False):
         vis.kmeans(200)
 
 
-def data_creation(logger):
-    data_transformer = DataTransformer(logger)
+def data_creation(config):
+    data_transformer = DataTransformer(config)
     data_transformer.transform_data_from_cache()
 
 
 if __name__ == "__main__":
 
-    data_creation(logging2)
+    data_creation(configuration)
 
-    """main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
-        logging1,
+    main(
+        "pickle_file",
+        configuration,
         True,
     )
 
-    main(
-        "/home/ed/PhD/Temporal-3DCNN-pytorch/data/input/transformed/4500.pkl",
-        logging2,
-        True,
-    )"""
+  
