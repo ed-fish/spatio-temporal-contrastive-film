@@ -1,6 +1,6 @@
 ## Spatio Temporal Contrastive Film: Pytorch (work in progress)
 A Pytorch implementation of Spatio Temporal Contrastive Video Representation Learning which has been adapted for film trailer analysis. 
-This repo is designed for unsupervised analysis of clips extracted from movie trailers.
+This repo is designed for unsupervised analysis of clips extracted from movie trailers. In December 2021 I will update this repo to a direct implementation of the paper and add results on Moments in Time and Kinetics400. 
 
 Check out the paper this implementation is based on here: https://arxiv.org/abs/2008.03800
 
@@ -15,9 +15,5 @@ An example config is given in `main.py`. Pass the config to main to train the mo
 ### Evaluation
 Run the code with `Train=False` 
 The model will post all the data via a `SummaryWriter` to a directory specified in the config object. This will also contain a Tensorboard T-SNE Plot - for kmeans use the `kmeans = True` flag.
-
-### Results
-
-Coming soon.
 
 
