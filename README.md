@@ -1,8 +1,14 @@
-## Spatio Temporal Contrastive Film: Pytorch (work in progress)
-A Pytorch implementation of Spatio Temporal Contrastive Video Representation Learning which has been adapted for film trailer analysis. 
-This repo is designed for unsupervised analysis of clips extracted from movie trailers. In December 2021 I will update this repo to a direct implementation of the paper and add results on Moments in Time and Kinetics400. 
+## Spatio Temporal Contrastive Film Clip Clustering
+
+***Please note that this repo is not a direct implementation of "Spatio Temporal Contrastive Video Representation Learning" but may provide some hints if you are looking for one. I'm currently working on refactoring this code into a direct implementation so please check back in December 2021***
+
+This repo is designed for unsupervised analysis of clips extracted from movie trailers.
 
 Check out the paper this implementation is based on here: https://arxiv.org/abs/2008.03800
+
+If you are working on movie genre classification and find this code useful please consider citing the following paper:
+
+```Fish, Edward, Jon Weinbren, and Andrew Gilbert. "Rethinking Genre Classification With Fine Grained Semantic Clustering." 2021 IEEE International Conference on Image Processing (ICIP). IEEE, 2021.```
 
 ### Data Pre-Processing
 First you will need to split your trailers into scenes. `PySceneDetect` works well for this. 
