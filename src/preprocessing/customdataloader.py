@@ -74,19 +74,13 @@ class DataLoader:
         scene = self.data_frame.at[idx, SCENE]
         genre = self.data_frame.at[idx, GENRE]
         t_data = self.data_frame.at[idx, T_DATA]
-        random_n = random.randrange(0, len(t_data))
-
+        random_n = random.randrange(0, len(t_data)) 
         chunk_zi = t_data[random_n].transpose(1, 0, 2, 3)
         del t_data[random_n]
         chunk_zj = t_data[random.randrange(0, len(t_data))].transpose(1, 0, 2, 3)
         chunk_zi = torch.FloatTensor(chunk_zi)
         chunk_zj = torch.FloatTensor(chunk_zj)
-        o_1 = o_data[0].transpose(1, 0, 2, 3)
-        o_2 = o_data[1].transpose(1, 0, 2, 3)
-        o_1 = torch.FloatTensor(o_1)
-        o_2 = torch.FloatTensor(o_2)
         t_pair = [chunk_zi, chunk_zj]
-        o_pair = [o_1, o_2]
         sample = {
             FILEPATH: fp,
             NAME: name,
@@ -112,7 +106,8 @@ class ContrastiveDataSet(Dataset):
         scene = self.data_frame.at[idx, SCENE]
         genre = self.data_frame.at[idx, GENRE]
         t_data = self.data_frame.at[idx, T_DATA]
-        t_chunk_zi = t_data[random.randrange(0, len(data))].pop().transpose(1, 0, 2, 3)
+        t_chunk_zi = t_data[random.randrange(0, len(data))].pop().transpose(1, 0, 2, 3) 
+        # These are two random samples, original paper implements a decreasing temporal sampling strategy
         t_chunk_zj = t_data[random.randrange(0, len(data))].transpose(1, 0, 2, 3)
         sample = {
             FILEPATH: fp,
