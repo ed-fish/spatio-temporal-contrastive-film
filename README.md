@@ -1,7 +1,5 @@
 ## Spatio Temporal Contrastive Film Clip Clustering
 
-***Please note that this repo is not a direct implementation of "Spatio Temporal Contrastive Video Representation Learning" but may provide some hints if you are looking for one. I'm currently working on refactoring this code into a direct implementation so please check back in December 2021***
-
 This repo is designed for unsupervised analysis of clips extracted from movie trailers.
 
 Check out the paper this implementation is based on here: https://arxiv.org/abs/2008.03800
